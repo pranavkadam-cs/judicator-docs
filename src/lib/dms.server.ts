@@ -102,7 +102,7 @@ export async function registerDocument(input: {
   hash: string;
   size: number;
   note: string;
-  documentId?: string;
+  documentId?: string | undefined;
 }) {
   const reg = await loadRegistry();
   if (!ROLE_PROFILE[input.actor.role].canUpload) {
@@ -178,7 +178,7 @@ export async function registerDocument(input: {
   };
 }
 
-export async function getDownloadTarget(input: { actor: ActorInput; documentId: string; version?: string }) {
+export async function getDownloadTarget(input: { actor: ActorInput; documentId: string; version?: string | undefined }) {
   const reg = await loadRegistry();
   const doc = reg.documents.find((d) => d.id === input.documentId);
   if (!doc) throw new Error("Record not found in the archive.");
@@ -331,7 +331,7 @@ export async function advanceAsset(input: {
   actor: ActorInput;
   assetId: string;
   status: AssetStatus;
-  assignedTo?: string;
+  assignedTo?: string | undefined;
   note: string;
 }) {
   const reg = await loadRegistry();
