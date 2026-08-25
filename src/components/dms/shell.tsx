@@ -94,7 +94,7 @@ export function AppShell({
             {actions}
           </div>
         </header>
-        <div className="animate-rise px-5 py-6 lg:px-8">{children}</div>
+        <div className="animate-entry px-5 py-6 lg:px-8">{children}</div>
       </main>
     </div>
   );
