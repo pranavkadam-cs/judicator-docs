@@ -1,5 +1,5 @@
 {
-  "version": 6,
+  "version": 14,
   "users": [
     {
       "id": "usr-admin-001",
@@ -10,7 +10,7 @@
       "passwordHash": "40acd16741f4481a1e41691028335da8:b3be9e8f543dc01146438f1a3151daa40c26463c667fba1235a346306662d3ad",
       "isActive": true,
       "createdAt": "2024-01-15T08:00:00.000Z",
-      "lastLoginAt": "2026-08-26T07:21:38.244Z"
+      "lastLoginAt": "2026-08-26T09:32:39.631Z"
     },
     {
       "id": "usr-invest-002",
@@ -54,7 +54,7 @@
       "passwordHash": "22756c46520f768fe7af47715f5c44e3:52fde0eb14d6d47acea01a527453c7d78e18f1afc6034ae5558686bcbd77d231",
       "isActive": true,
       "createdAt": "2024-05-12T14:00:00.000Z",
-      "lastLoginAt": "2024-10-18T10:00:00.000Z"
+      "lastLoginAt": "2026-08-26T09:37:22.473Z"
     }
   ],
   "cases": [
@@ -880,6 +880,110 @@
     }
   ],
   "audit": [
+    {
+      "id": "aud-mt9whs8o0wb22",
+      "at": "2026-08-26T09:37:50.904Z",
+      "actor": "Dr. N. Iyer",
+      "actorId": "usr-viewer-005",
+      "role": "VIEWER",
+      "action": "DOCUMENT_VIEWED",
+      "target": "Judgment — Mercury Holdings Fraud Case",
+      "targetId": "doc-jdg-332",
+      "detail": "Metadata inspected for v1.0.0.",
+      "hash": "d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4",
+      "ipAddress": null
+    },
+    {
+      "id": "aud-mt9whpulfpn3h",
+      "at": "2026-08-26T09:37:47.805Z",
+      "actor": "Dr. N. Iyer",
+      "actorId": "usr-viewer-005",
+      "role": "VIEWER",
+      "action": "DOCUMENT_VIEWED",
+      "target": "Judgment — Mercury Holdings Fraud Case",
+      "targetId": "doc-jdg-332",
+      "detail": "Metadata inspected for v1.0.0.",
+      "hash": "d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4",
+      "ipAddress": null
+    },
+    {
+      "id": "aud-mt9wh6axj8lk",
+      "at": "2026-08-26T09:37:22.473Z",
+      "actor": "Dr. N. Iyer",
+      "actorId": "usr-viewer-005",
+      "role": "VIEWER",
+      "action": "USER_LOGIN",
+      "target": "viewer@vigil.os",
+      "targetId": "usr-viewer-005",
+      "detail": "Authenticated successfully.",
+      "hash": null,
+      "ipAddress": null
+    },
+    {
+      "id": "aud-mt9wb427n119",
+      "at": "2026-08-26T09:32:39.631Z",
+      "actor": "S. Rao",
+      "actorId": "usr-admin-001",
+      "role": "ADMIN",
+      "action": "USER_LOGIN",
+      "target": "admin@vigil.os",
+      "targetId": "usr-admin-001",
+      "detail": "Authenticated successfully.",
+      "hash": null,
+      "ipAddress": null
+    },
+    {
+      "id": "aud-mt9wb0z036hm",
+      "at": "2026-08-26T09:32:35.628Z",
+      "actor": "S. Rao",
+      "actorId": "usr-admin-001",
+      "role": "ADMIN",
+      "action": "USER_LOGOUT",
+      "target": "admin@vigil.os",
+      "targetId": "usr-admin-001",
+      "detail": "Session ended.",
+      "hash": null,
+      "ipAddress": null
+    },
+    {
+      "id": "aud-mt9wajvloodk",
+      "at": "2026-08-26T09:32:13.473Z",
+      "actor": "S. Rao",
+      "actorId": "usr-admin-001",
+      "role": "ADMIN",
+      "action": "USER_LOGIN",
+      "target": "admin@vigil.os",
+      "targetId": "usr-admin-001",
+      "detail": "Authenticated successfully.",
+      "hash": null,
+      "ipAddress": null
+    },
+    {
+      "id": "aud-mt9waikz95s5",
+      "at": "2026-08-26T09:32:11.795Z",
+      "actor": "S. Rao",
+      "actorId": "usr-admin-001",
+      "role": "ADMIN",
+      "action": "USER_LOGOUT",
+      "target": "admin@vigil.os",
+      "targetId": "usr-admin-001",
+      "detail": "Session ended.",
+      "hash": null,
+      "ipAddress": null
+    },
+    {
+      "id": "aud-mt9w9uwofkno",
+      "at": "2026-08-26T09:31:41.112Z",
+      "actor": "S. Rao",
+      "actorId": "usr-admin-001",
+      "role": "ADMIN",
+      "action": "USER_LOGIN",
+      "target": "admin@vigil.os",
+      "targetId": "usr-admin-001",
+      "detail": "Authenticated successfully.",
+      "hash": null,
+      "ipAddress": null
+    },
     {
       "id": "aud-mt9roic3x4gby",
       "at": "2026-08-26T07:23:06.579Z",

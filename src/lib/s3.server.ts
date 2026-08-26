@@ -1,17 +1,17 @@
 /**
- * Server-only AWS S3 access through the Lovable connector gateway.
+ * Server-only AWS S3 access through the connector gateway.
  * Reads/writes go through pre-signed URLs; listing goes through the gateway proxy.
  */
-const GATEWAY_URL = "https://connector-gateway.lovable.dev/aws_s3";
-const API_URL = "https://connector-gateway.lovable.dev";
+const GATEWAY_URL = process.env["S3_GATEWAY_URL"] ?? "";
+const API_URL = process.env["S3_API_URL"] ?? "";
 
-type Creds = { lovableKey: string; connectionKey: string };
+type Creds = { gatewayKey: string; connectionKey: string };
 
 function creds(): Creds | null {
-  const lovableKey = process.env["LOVABLE_API_KEY"];
+  const gatewayKey = process.env["GATEWAY_API_KEY"];
   const connectionKey = process.env["AWS_S3_API_KEY"];
-  if (!lovableKey || !connectionKey) return null;
-  return { lovableKey, connectionKey };
+  if (!gatewayKey || !connectionKey) return null;
+  return { gatewayKey, connectionKey };
 }
 
 export function s3Configured() {
@@ -20,7 +20,7 @@ export function s3Configured() {
 
 function headers(c: Creds, json = false) {
   return {
-    Authorization: `Bearer ${c.lovableKey}`,
+    Authorization: `Bearer ${c.gatewayKey}`,
     "X-Connection-Api-Key": c.connectionKey,
     ...(json ? { "Content-Type": "application/json" } : {}),
   };

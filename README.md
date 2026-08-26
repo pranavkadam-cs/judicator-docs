@@ -1,66 +1,117 @@
 # Vigil.OS — Secure Digital Document Management System
 
-Vigil.OS is a secure, modern, full-stack digital document management system designed for law enforcement agencies, courts, legal departments, and investigation teams to securely archive and manage sensitive legal files.
+Vigil.OS is a secure, modern, full-stack digital document management system (DMS) built on TanStack Start. It is designed for law enforcement agencies, courts, legal departments, and investigation teams to securely archive, manage, and audit sensitive legal files and case dossiers.
 
-## Features
+---
 
-- **Role-Based Access Control (RBAC)**: Five distinct roles with progressive clearance levels:
-  - `Admin`: User management, audit trail inspection, reclassification, signing, and asset lifecycle control.
-  - `Investigator`: Case dossier management, document upload, reclassification, signing, and workflow approval.
-  - `Legal Officer`: Docket retrieval, document upload, digital signing, and workflow approval.
-  - `Court Officer`: Docket retrieval, document upload, and case status tracking.
-  - `Viewer`: Read-only metadata inspection (clearance-gated).
-- **Case Dossier Management**: Standard case fields (ID, title, priority, classification, jurisdiction, lead investigator, assigned officers, summary).
-- **Workflow State Machine**: Document review process: `Draft` → `Under Review` → `Approved` / `Rejected` → `Sealed` → `Signed` → `Archived`.
-- **Data Integrity & Security**:
-  - SHA-256 client-side and server-side hashing on all file uploads.
-  - Digital signatures using cryptographic identifiers (badge numbers + hash digests).
-  - Tamper detection alert banner that flags any document with a hash mismatch.
-- **Granular Document Sharing**: Secure access sharing between individual users with optional expiration dates and download permissions.
-- **Audit Logging**: Comprehensive, immutable logs for all activities (logins, logouts, uploads, downloads, sharing, permissions, reclassifications).
-- **Responsive Dashboard**: Beautiful charts summarizing document category distributions, case status, pending reviews, and recent activity.
+## 🏛️ System Architecture
 
-## Setup Instructions
+```mermaid
+graph TD
+    User([Security User]) -->|Interacts| Client[Vigil.OS Client - React / CSS]
+    Client -->|Invokes Server Functions| ServerFn[TanStack Start Server Functions]
+    ServerFn -->|Validates Sessions / RBAC| Auth[Auth Engine]
+    ServerFn -->|Performs DMS Operations| DMS[DMS Engine]
+    DMS -->|Reads/Writes| DB[(JSON Registry - .data/registry.json)]
+    DMS -.->|Optional S3 Storage| S3[Storage Gateway]
+```
 
-### Prerequisites
-- Node.js (v18 or higher)
-- npm (v9 or higher)
+---
 
-### Installation
-1. Clone the repository and navigate to the directory:
+## 🔑 Role Clearance Matrix
+
+The application implements granular Role-Based Access Control (RBAC) across five clearance levels:
+
+| Role | Access Level | Description & Clearance Privileges |
+| :--- | :--- | :--- |
+| **Admin** | Level 5 | Full system control: User management, reclassification, digital signing, and lifecycle control. |
+| **Investigator** | Level 4 | Dossier management: Upload documents, trigger reclassification, digitally sign, and approve workflows. |
+| **Legal Officer** | Level 3 | Docket management: Retrieve dockets, upload documents, and apply digital signatures. |
+| **Court Officer** | Level 2 | Case tracking: Access docket indices, upload records, and track case statuses. |
+| **Viewer** | Level 1 | Restricted access: Gated read-only metadata inspection. |
+
+---
+
+## 📁 Repository Directory Structure
+
+```
+judicator-docs/
+├── .data/
+│   └── registry.json         # Local persistent JSON database
+├── public/
+│   ├── favicon.png           # Custom security shield tab icon
+│   └── robots.txt
+├── src/
+│   ├── components/
+│   │   ├── dms/              # Case dossier and workflow components
+│   │   └── ui/               # Reusable presentation components
+│   ├── hooks/                # React state & lifecycle hooks
+│   ├── lib/
+│   │   ├── auth.server.ts    # Authentication and session handling
+│   │   ├── dms.server.ts     # Dossier management service layer
+│   │   ├── registry.server.ts# Database adapter
+│   │   └── error-reporting.ts# Runtime exception telemetry
+│   ├── routes/               # File-based routing pages
+│   ├── router.tsx            # Router initialization
+│   ├── server.ts             # SSR server entry point
+│   ├── start.ts              # Client shell mount
+│   └── styles.css            # Application global styles
+├── tsconfig.json             # TypeScript configuration
+└── vite.config.ts            # Vite build configuration
+```
+
+---
+
+## 🛠️ Key Technical Features
+
+* **Granular Document Sharing**: Secure, time-bound sharing between users with optional download/read-only permissions.
+* **Workflow State Machine**: Gated document lifecycle: `Draft` ➔ `Under Review` ➔ `Approved/Rejected` ➔ `Sealed` ➔ `Signed` ➔ `Archived`.
+* **Cryptographic Integrity**: SHA-256 client/server hashing on file uploads, with alert banners to flag hash mismatches.
+* **Audit Logging**: Immutable, automated logging of all system actions (logins, uploads, sharing, clearance modifications).
+* **Responsive Dashboard**: Recharts-based statistics for case priority, review tasks, and classification levels.
+
+---
+
+## 🚀 Getting Started
+
+### 📋 Prerequisites
+- **Node.js** (v18 or higher)
+- **npm** (v9 or higher)
+
+### 📥 Installation & Local Setup
+
+1. **Clone the repository**:
    ```bash
+   git clone <repository-url>
    cd judicator-docs
    ```
-2. Install dependencies:
+
+2. **Install dependencies**:
    ```bash
    npm install
    ```
-3. Start the local development server:
+
+3. **Start the local development server**:
    ```bash
    npm run dev
    ```
-4. Access the dashboard at `http://localhost:3000` (or the port shown in the terminal).
+   The application will be accessible at: `http://localhost:8080`
 
-### Environment Variables
-Configure the following in a `.env` file in the project root:
-```env
-# Optional S3 Gateway config. If not specified, falls back to local file storage.
-LOVABLE_API_KEY=your-lovable-api-key
-AWS_S3_API_KEY=your-aws-s3-connection-key
-```
+4. **Verify / Build for Production**:
+   ```bash
+   npm run build
+   ```
 
-### Local Storage Architecture
-- **Registry Database**: Persisted locally in `.data/registry.json`. This acts as the secure relational data store.
-- **Local File Uploads**: Fallback storage operates in-memory for fast hot-reload development.
-- **Future S3 Integration Point**: S3 storage is ready out-of-the-box. When `LOVABLE_API_KEY` and `AWS_S3_API_KEY` are provided, file transfers automatically route through pre-signed S3 upload/download URLs using the connector proxy in [`src/lib/s3.server.ts`](src/lib/s3.server.ts).
+---
 
-## Seed Credentials
-Log in with the following demo users to test role capabilities:
+## 🎫 Seed Demo Credentials
+
+Use these pre-configured user credentials to explore different roles and access controls:
 
 | Email | Password | Role | Badge ID |
 | :--- | :--- | :--- | :--- |
-| `admin@vigil.os` | `admin123` | Admin | `REC-0001` |
-| `investigator@vigil.os` | `invest123` | Investigator | `MH-1180` |
-| `legal@vigil.os` | `legal123` | Legal Officer | `PP-0092` |
-| `court@vigil.os` | `court123` | Court Officer | `MH-4471` |
-| `viewer@vigil.os` | `viewer123` | Viewer | `FSL-303` |
+| `admin@vigil.os` | `admin123` | **Admin** | `REC-0001` |
+| `investigator@vigil.os` | `invest123` | **Investigator** | `MH-1180` |
+| `legal@vigil.os` | `legal123` | **Legal Officer** | `PP-0092` |
+| `court@vigil.os` | `court123` | **Court Officer** | `MH-4471` |
+| `viewer@vigil.os` | `viewer123` | **Viewer** | `FSL-303` |
