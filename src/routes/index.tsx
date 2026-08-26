@@ -28,6 +28,8 @@ export const Route = createFileRoute("/")({
         content:
           "Centralised, tamper-evident storage for FIRs, charge sheets, forensic reports and police asset records.",
       },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: Command,

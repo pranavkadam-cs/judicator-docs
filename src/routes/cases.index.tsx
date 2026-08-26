@@ -28,6 +28,8 @@ export const Route = createFileRoute("/cases/")({
       },
       { property: "og:title", content: "Case files — Vigil.OS" },
       { property: "og:description", content: "Centralised dossiers for investigations, filings and evidence records." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: CasesPage,
