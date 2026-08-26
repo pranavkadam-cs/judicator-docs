@@ -1,28 +1,52 @@
+/* ─────────────────────────────────────────────────────────────
+ *  Vigil.OS — DMS server functions (TanStack Start)
+ * ───────────────────────────────────────────────────────────── */
+
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { CLASSIFICATIONS, DOC_CATEGORIES, ROLES } from "./dms-types";
+import {
+  CLASSIFICATIONS,
+  DOC_CATEGORIES,
+  ROLES,
+  CASE_STATUSES,
+  CASE_PRIORITIES,
+  DOC_STATUSES,
+} from "./dms-types";
 
 const actorSchema = z.object({
+  id: z.string(),
   name: z.string().min(1),
   badge: z.string().min(1),
   role: z.enum(ROLES),
 });
 
 const classificationSchema = z.enum(CLASSIFICATIONS);
+const caseStatusSchema = z.enum(CASE_STATUSES);
+const casePrioritySchema = z.enum(CASE_PRIORITIES);
+const docStatusSchema = z.enum(DOC_STATUSES);
+
 const assetStatusSchema = z.enum([
-  "IN SERVICE",
+  "IN_SERVICE",
   "ISSUED",
   "MAINTENANCE",
   "RETURNED",
   "RETIRED",
   "IMPOUNDED",
 ]);
-const assetCategorySchema = z.enum(["WEAPON", "VEHICLE", "DEVICE", "RADIO", "FORENSIC KIT"]);
+const assetCategorySchema = z.enum([
+  "WEAPON",
+  "VEHICLE",
+  "DEVICE",
+  "RADIO",
+  "FORENSIC KIT",
+]);
 
-export const fetchSnapshot = createServerFn({ method: "GET" }).handler(async () => {
-  const { getSnapshot } = await import("./dms.server");
-  return getSnapshot();
-});
+export const fetchSnapshot = createServerFn({ method: "GET" })
+  .inputValidator((input) => z.object({ actorId: z.string().optional() }).parse(input))
+  .handler(async ({ data }) => {
+    const { getSnapshot } = await import("./dms.server");
+    return getSnapshot(data.actorId);
+  });
 
 export const openCase = createServerFn({ method: "POST" })
   .inputValidator((input) =>
@@ -35,12 +59,32 @@ export const openCase = createServerFn({ method: "POST" })
         jurisdiction: z.string().min(1),
         statute: z.string().default(""),
         classification: classificationSchema,
+        priority: casePrioritySchema,
+        assignedOfficerIds: z.array(z.string()).default([]),
       })
       .parse(input),
   )
   .handler(async ({ data }) => {
     const { createCase } = await import("./dms.server");
     return createCase(data);
+  });
+
+export const updateCaseFn = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        actor: actorSchema,
+        caseId: z.string().min(1),
+        status: caseStatusSchema.optional(),
+        priority: casePrioritySchema.optional(),
+        assignedOfficerIds: z.array(z.string()).optional(),
+        summary: z.string().optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { updateCase } = await import("./dms.server");
+    return updateCase(data);
   });
 
 export const fileDocument = createServerFn({ method: "POST" })
@@ -55,6 +99,7 @@ export const fileDocument = createServerFn({ method: "POST" })
         hash: z.string().min(16),
         size: z.number().nonnegative(),
         note: z.string().default(""),
+        tags: z.array(z.string()).default([]),
         documentId: z.string().optional(),
       })
       .parse(input),
@@ -62,6 +107,22 @@ export const fileDocument = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { registerDocument } = await import("./dms.server");
     return registerDocument(data);
+  });
+
+export const advanceWorkflowFn = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        actor: actorSchema,
+        documentId: z.string().min(1),
+        newStatus: docStatusSchema,
+        comment: z.string().default(""),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { advanceWorkflow } = await import("./dms.server");
+    return advanceWorkflow(data);
   });
 
 export const requestDownload = createServerFn({ method: "POST" })
@@ -95,7 +156,9 @@ export const checkIntegrity = createServerFn({ method: "POST" })
   });
 
 export const applySignature = createServerFn({ method: "POST" })
-  .inputValidator((input) => z.object({ actor: actorSchema, documentId: z.string().min(1) }).parse(input))
+  .inputValidator((input) =>
+    z.object({ actor: actorSchema, documentId: z.string().min(1) }).parse(input),
+  )
   .handler(async ({ data }) => {
     const { signDocument } = await import("./dms.server");
     return signDocument(data);
@@ -116,15 +179,71 @@ export const reclassifyDocument = createServerFn({ method: "POST" })
     return setClassification(data);
   });
 
-export const toggleShare = createServerFn({ method: "POST" })
+export const shareDocumentFn = createServerFn({ method: "POST" })
   .inputValidator((input) =>
     z
-      .object({ actor: actorSchema, documentId: z.string().min(1), role: z.enum(ROLES) })
+      .object({
+        actor: actorSchema,
+        documentId: z.string().min(1),
+        sharedWithUserId: z.string().min(1),
+        permissions: z.array(z.enum(["VIEW", "DOWNLOAD"])).default(["VIEW"]),
+        expiresAt: z.string().nullable().default(null),
+      })
       .parse(input),
   )
   .handler(async ({ data }) => {
     const { shareDocument } = await import("./dms.server");
     return shareDocument(data);
+  });
+
+export const revokeShareFn = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        actor: actorSchema,
+        shareId: z.string().min(1),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { revokeShare } = await import("./dms.server");
+    return revokeShare(data);
+  });
+
+export const toggleShare = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        actor: actorSchema,
+        documentId: z.string().min(1),
+        role: z.enum(ROLES),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { shareDocumentWithRole } = await import("./dms.server");
+    return shareDocumentWithRole(data);
+  });
+
+export const markNotificationReadFn = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        userId: z.string(),
+        notificationId: z.string(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { markNotificationRead } = await import("./dms.server");
+    return markNotificationRead(data);
+  });
+
+export const markAllNotificationsReadFn = createServerFn({ method: "POST" })
+  .inputValidator((input) => z.object({ userId: z.string() }).parse(input))
+  .handler(async ({ data }) => {
+    const { markAllNotificationsRead } = await import("./dms.server");
+    return markAllNotificationsRead(data.userId);
   });
 
 export const inductAsset = createServerFn({ method: "POST" })

@@ -1,54 +1,66 @@
-# Secure Docket
+# Vigil.OS — Secure Digital Document Management System
 
-Background Law enforcement agencies, courts, legal departments, and investigative organizations handle vast amounts of sensitive documents throughout the lifecycle of a case. These documents may include:
-• FIRs and police reports
-• Investigation records
-• Witness statements
-• Charge sheets
-• Court filings
-• Evidence records
-• Forensic reports
-• Legal notices and judgments Many organizations still rely on paper-based systems or fragmented digital storage solutions. This often leads to challenges such as:
-• Difficulty in locating documents quickly
-• Unauthorized access to confidential information
-• Document tampering risks
-• Lack of version control
-• Inefficient collaboration between departments
-• Delays in legal and investigative processes
-• Poor auditability and compliance tracking As the volume of legal and investigation-related data continues to grow,there is an increasing need for a secure, centralized, and intelligent document management system that ensures data integrity, accessibility,confidentiality, and efficient case management.Modern technologies such as Cloud Computing, Artificial Intelligence (AI), Blockchain, Digital Signatures, and Secure Access Control can significantly improve the management and security of legal and investigative documents.
-• Description The objective is to develop a Secure Digital Document Management System (DMS) that enables law enforcement agencies, legal institutions, and investigative departments to securely store, organize, manage,retrieve, and share sensitive legal and investigation documents.
+Vigil.OS is a secure, modern, full-stack digital document management system designed for law enforcement agencies, courts, legal departments, and investigation teams to securely archive and manage sensitive legal files.
 
-The system should:
+## Features
 
-• Digitize and centralize document storage.
-• Ensure secure access and confidentiality.
-• Prevent unauthorized modifications.
-• Maintain a complete audit trail of document activities.
-• Enable efficient document search and retrieval.
-• Support collaboration among authorized stakeholders.
-• Ensure compliance with legal and regulatory requirements.
+- **Role-Based Access Control (RBAC)**: Five distinct roles with progressive clearance levels:
+  - `Admin`: User management, audit trail inspection, reclassification, signing, and asset lifecycle control.
+  - `Investigator`: Case dossier management, document upload, reclassification, signing, and workflow approval.
+  - `Legal Officer`: Docket retrieval, document upload, digital signing, and workflow approval.
+  - `Court Officer`: Docket retrieval, document upload, and case status tracking.
+  - `Viewer`: Read-only metadata inspection (clearance-gated).
+- **Case Dossier Management**: Standard case fields (ID, title, priority, classification, jurisdiction, lead investigator, assigned officers, summary).
+- **Workflow State Machine**: Document review process: `Draft` → `Under Review` → `Approved` / `Rejected` → `Sealed` → `Signed` → `Archived`.
+- **Data Integrity & Security**:
+  - SHA-256 client-side and server-side hashing on all file uploads.
+  - Digital signatures using cryptographic identifiers (badge numbers + hash digests).
+  - Tamper detection alert banner that flags any document with a hash mismatch.
+- **Granular Document Sharing**: Secure access sharing between individual users with optional expiration dates and download permissions.
+- **Audit Logging**: Comprehensive, immutable logs for all activities (logins, logouts, uploads, downloads, sharing, permissions, reclassifications).
+- **Responsive Dashboard**: Beautiful charts summarizing document category distributions, case status, pending reviews, and recent activity.
 
-The challenge is to create a secure, scalable, and intelligent platform that streamlines document handling while preserving legal validity and evidentiary integrity.
+## Setup Instructions
 
-• Expected Solution Develop a system to monitor and manage police assets throughout their lifecycle.
+### Prerequisites
+- Node.js (v18 or higher)
+- npm (v9 or higher)
 
-This project was built with [Lovable](https://lovable.dev).
+### Installation
+1. Clone the repository and navigate to the directory:
+   ```bash
+   cd judicator-docs
+   ```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Start the local development server:
+   ```bash
+   npm run dev
+   ```
+4. Access the dashboard at `http://localhost:3000` (or the port shown in the terminal).
 
-## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/31eef20d-03b5-4bdc-bc74-b026773a2e21).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
-
-## Development
-
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
-
-```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
-npm run dev
+### Environment Variables
+Configure the following in a `.env` file in the project root:
+```env
+# Optional S3 Gateway config. If not specified, falls back to local file storage.
+LOVABLE_API_KEY=your-lovable-api-key
+AWS_S3_API_KEY=your-aws-s3-connection-key
 ```
+
+### Local Storage Architecture
+- **Registry Database**: Persisted locally in `.data/registry.json`. This acts as the secure relational data store.
+- **Local File Uploads**: Fallback storage operates in-memory for fast hot-reload development.
+- **Future S3 Integration Point**: S3 storage is ready out-of-the-box. When `LOVABLE_API_KEY` and `AWS_S3_API_KEY` are provided, file transfers automatically route through pre-signed S3 upload/download URLs using the connector proxy in [`src/lib/s3.server.ts`](src/lib/s3.server.ts).
+
+## Seed Credentials
+Log in with the following demo users to test role capabilities:
+
+| Email | Password | Role | Badge ID |
+| :--- | :--- | :--- | :--- |
+| `admin@vigil.os` | `admin123` | Admin | `REC-0001` |
+| `investigator@vigil.os` | `invest123` | Investigator | `MH-1180` |
+| `legal@vigil.os` | `legal123` | Legal Officer | `PP-0092` |
+| `court@vigil.os` | `court123` | Court Officer | `MH-4471` |
+| `viewer@vigil.os` | `viewer123` | Viewer | `FSL-303` |

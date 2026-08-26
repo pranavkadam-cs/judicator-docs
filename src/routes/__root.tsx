@@ -4,14 +4,16 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useNavigate,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
+import { Toaster } from "sonner";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { ActorProvider } from "../components/dms/actor";
+import { ActorProvider, useActor } from "../components/dms/actor";
 
 function NotFoundComponent() {
   return (
@@ -25,7 +27,7 @@ function NotFoundComponent() {
         <div className="mt-6">
           <Link
             to="/"
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 cursor-pointer"
           >
             Go home
           </Link>
@@ -57,13 +59,13 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
               router.invalidate();
               reset();
             }}
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 cursor-pointer"
           >
             Try again
           </button>
           <a
             href="/"
-            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent cursor-pointer"
           >
             Go home
           </a>
@@ -119,9 +121,32 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <ActorProvider>
-        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-        <Outlet />
+        <AppContent />
+        <Toaster position="bottom-right" theme="dark" />
       </ActorProvider>
     </QueryClientProvider>
   );
+}
+
+function AppContent() {
+  const { actor, isPending } = useActor();
+  const router = useRouter();
+  const navigate = useNavigate();
+  const pathname = router.state.location.pathname;
+
+  useEffect(() => {
+    if (!isPending && !actor && pathname !== "/login") {
+      void navigate({ to: "/login" });
+    }
+  }, [actor, isPending, pathname, navigate]);
+
+  if (isPending) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+        Loading Vigil.OS secure docket...
+      </div>
+    );
+  }
+
+  return <Outlet />;
 }
