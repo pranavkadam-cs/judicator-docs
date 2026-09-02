@@ -158,3 +158,58 @@ export function EmptyState({ title, body }: { title: string; body: string }) {
     </div>
   );
 }
+
+export function IntegrityBadge({ status }: { status?: string }) {
+  const norm = (status || "VERIFIED").toUpperCase();
+  if (norm === "TAMPER_ALERT" || norm === "FAILED") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-xs border border-destructive/60 bg-destructive/15 px-2 py-0.5 font-mono text-[9px] font-bold tracking-[0.12em] text-destructive uppercase animate-pulse">
+        ⚠ Integrity Check Failed
+      </span>
+    );
+  }
+  if (norm === "VERIFYING") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-xs border border-primary/50 bg-primary/10 px-2 py-0.5 font-mono text-[9px] font-bold tracking-[0.12em] text-primary uppercase">
+        ⏳ Verifying Integrity
+      </span>
+    );
+  }
+  if (norm === "UNVERIFIED") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-xs border border-border bg-muted px-2 py-0.5 font-mono text-[9px] font-bold tracking-[0.12em] text-muted-foreground uppercase">
+        — Integrity Not Available
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 rounded-xs border border-seal/40 bg-seal/15 px-2 py-0.5 font-mono text-[9px] font-bold tracking-[0.12em] text-seal uppercase">
+      ✓ Integrity Verified
+    </span>
+  );
+}
+
+export function Sha256Display({ hash, label }: { hash: string; label?: string }) {
+  const short = hash ? `${hash.slice(0, 6)}…${hash.slice(-6)}` : "—";
+  return (
+    <div className="inline-flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
+      {label ? <span className="font-bold text-foreground">{label}:</span> : null}
+      <span className="bg-background/80 px-1.5 py-0.5 rounded-xs border border-border text-[11px] select-all">
+        {short}
+      </span>
+      <button
+        type="button"
+        onClick={async () => {
+          if (!hash) return;
+          await navigator.clipboard.writeText(hash);
+          const { toast } = await import("sonner");
+          toast.success("SHA-256 digest copied to clipboard.");
+        }}
+        className="font-mono text-[10px] uppercase font-bold text-primary hover:underline px-1 py-0.5 cursor-pointer"
+        title="Copy full 64-char SHA-256 hash"
+      >
+        Copy
+      </button>
+    </div>
+  );
+}

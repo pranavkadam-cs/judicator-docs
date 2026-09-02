@@ -13,6 +13,8 @@
 
 import type { Registry } from "./dms-types";
 import { hashPassword } from "./auth.server";
+import { computeSha256 } from "./crypto.server";
+import { saveLocalFile } from "./storage.server";
 
 export async function buildSeedRegistry(): Promise<Registry> {
   // Pre-hash all demo passwords
@@ -91,47 +93,85 @@ export async function buildSeedRegistry(): Promise<Registry> {
     category: Registry["documents"][number]["category"],
     classification: Registry["documents"][number]["classification"],
     status: Registry["documents"][number]["status"],
-    hash: string,
+    fallbackHash: string,
     uploadedBy: string,
     uploadedById: string,
     at: string,
     size: number,
     tags: string[] = [],
-  ): Registry["documents"][number] => ({
-    id,
-    caseId,
-    refId,
-    name,
-    category,
-    classification,
-    status,
-    currentVersion: "v1.0.0",
-    versions: [
-      {
-        version: "v1.0.0",
-        hash,
-        size,
-        mimeType: "application/pdf",
-        originalName: `${refId}.pdf`,
-        uploadedAt: at,
-        uploadedBy,
-        uploadedById,
-        objectKey: `vigil/cases/${caseId}/${refId}-v1.0.0`,
-        signature:
-          status === "SIGNED"
-            ? `SIG-${hash.slice(0, 12).toUpperCase()}`
-            : null,
-        signedBy: status === "SIGNED" ? uploadedBy : null,
-        note: "Initial filing ingested into the archive.",
-      },
-    ],
-    tags,
-    sharedWith: ["INVESTIGATOR", "ADMIN"],
-    updatedAt: at,
-    createdAt: at,
-    createdById: uploadedById,
-    storage: "local",
-  });
+  ): Registry["documents"][number] => {
+    const objectKey = `vigil/cases/${caseId}/${refId}-v1.0.0`;
+    const originalName = `${refId}.pdf`;
+
+    // Generate genuine PDF header and sealed dossier content
+    const sampleContent = Buffer.from(
+      `%PDF-1.4\n%Vigil.OS Cryptographic Dossier Record\n` +
+      `Docket Reference: ${refId}\n` +
+      `Title: ${name}\n` +
+      `Category: ${category}\n` +
+      `Classification: ${classification}\n` +
+      `Case ID: ${caseId}\n` +
+      `Sealed At: ${at}\n` +
+      `Uploaded By: ${uploadedBy} (${uploadedById})\n` +
+      `Security Protocol: SIH-26190 SHA-256 Cryptographic File Integrity Verification\n` +
+      `Status: ${status}\n` +
+      `%%EOF\n`
+    );
+
+    const computedHash = computeSha256(sampleContent);
+    // Write physical file to local storage
+    try {
+      void saveLocalFile(objectKey, sampleContent);
+    } catch {
+      // safe fallback
+    }
+
+    const finalHash = computedHash || fallbackHash;
+
+    return {
+      id,
+      caseId,
+      refId,
+      name,
+      category,
+      classification,
+      status,
+      currentVersion: "v1.0.0",
+      versions: [
+        {
+          version: "v1.0.0",
+          hash: finalHash,
+          sha256_hash: finalHash,
+          hash_algorithm: "SHA-256",
+          hash_created_at: at,
+          size: sampleContent.length || size,
+          mimeType: "application/pdf",
+          originalName,
+          original_filename: originalName,
+          stored_filename: `${refId}-v1.0.0.pdf`,
+          uploadedAt: at,
+          uploadedBy,
+          uploadedById,
+          objectKey,
+          signature:
+            status === "SIGNED"
+              ? `SIG-${finalHash.slice(0, 12).toUpperCase()}`
+              : null,
+          signedBy: status === "SIGNED" ? uploadedBy : null,
+          note: "Initial filing ingested into the archive with SHA-256 digest.",
+          integrity_status: "VERIFIED",
+          last_verified_at: at,
+          verification_count: 1,
+        },
+      ],
+      tags,
+      sharedWith: ["INVESTIGATOR", "ADMIN"],
+      updatedAt: at,
+      createdAt: at,
+      createdById: uploadedById,
+      storage: "local",
+    };
+  };
 
   return {
     version: 1,

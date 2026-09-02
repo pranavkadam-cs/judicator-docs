@@ -8,7 +8,7 @@ export const Route = createFileRoute("/login")({
   component: LoginPage,
 });
 
-function LoginPage() {
+export function LoginPage() {
   const { login, isPending } = useActor();
   const navigate = useNavigate();
 
@@ -62,7 +62,7 @@ function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1">
-              <Label htmlFor="email">Security Email</Label>
+              <Label>Security Email</Label>
               <div className="relative">
                 <Mail className="absolute top-2.5 left-3 size-4 text-muted-foreground" />
                 <input
@@ -79,7 +79,7 @@ function LoginPage() {
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="password">Security Pin / Password</Label>
+              <Label>Security Pin / Password</Label>
               <div className="relative">
                 <Lock className="absolute top-2.5 left-3 size-4 text-muted-foreground" />
                 <input
@@ -120,6 +120,10 @@ function LoginPage() {
             <div>viewer@vigil.os / viewer123</div>
           </div>
         </Panel>
+
+        <div className="text-center font-mono text-[10px] text-muted-foreground tracking-wider uppercase">
+          Technology Architecture: React · TypeScript · Python · Java · Node.js
+        </div>
       </div>
     </div>
   );

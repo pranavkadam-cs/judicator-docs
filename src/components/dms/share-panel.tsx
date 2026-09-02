@@ -26,6 +26,8 @@ export function SharePanel({ documentId }: SharePanelProps) {
   const allUsers = data?.users ?? [];
   const activeShares = data?.shares?.filter((s) => s.documentId === documentId && s.isActive) ?? [];
   
+  if (!actor) return null;
+
   // Filter out the current user and users who already have active shares
   const eligibleUsers = allUsers.filter(
     (u) => u.id !== actor.id && !activeShares.some((s) => s.sharedWithUserId === u.id),

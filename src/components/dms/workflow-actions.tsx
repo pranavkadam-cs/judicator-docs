@@ -18,6 +18,8 @@ export function WorkflowActions({ documentId, currentStatus }: WorkflowActionsPr
   const [comment, setComment] = useState("");
   const [busy, setBusy] = useState(false);
 
+  if (!actor) return null;
+
   const profile = ROLE_PROFILE[actor.role];
   const nextStatuses = WORKFLOW_TRANSITIONS[currentStatus] || [];
 

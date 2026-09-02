@@ -63,10 +63,10 @@ function CasesPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // Filter cases based on clearance and query
+  // Filter visible cases based on clearance level and query
   const cases = useMemo(() => {
-    if (!data) return [];
-    
+    if (!data?.cases || !actor) return [];
+
     // 1. Role-based clearance check
     let visible = data.cases.filter((c) => canRead(actor.role, c.classification));
 
@@ -90,6 +90,7 @@ function CasesPage() {
       title="Case Dossier Registry"
       subtitle="Records Division"
       actions={
+        actor &&
         actor.role !== "VIEWER" && (
           <button
             onClick={() => setOpen((v) => !v)}
@@ -185,7 +186,7 @@ function CasesPage() {
                 <Label className="mb-1.5 block">Assign Additional Officers</Label>
                 <div className="grid grid-cols-2 gap-2 bg-background p-3 border border-border rounded-sm max-h-[140px] overflow-y-auto">
                   {allPersonnel
-                    .filter((u) => u.id !== actor.id)
+                    .filter((u) => !actor || u.id !== actor.id)
                     .map((u) => {
                       const checked = form.assignedOfficerIds.includes(u.id);
                       return (
@@ -240,7 +241,7 @@ function CasesPage() {
           <div className="grid gap-4 lg:grid-cols-2">
             {cases.map((c) => {
               const docs = data?.documents.filter((d) => d.caseId === c.id) ?? [];
-              const caseDocsCount = docs.filter((d) => canRead(actor.role, d.classification)).length;
+              const caseDocsCount = docs.filter((d) => (actor ? canRead(actor.role, d.classification) : false)).length;
               return (
                 <Link
                   key={c.id}

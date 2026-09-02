@@ -161,12 +161,19 @@ export const WORKFLOW_TRANSITIONS: Record<DocStatus, DocStatus[]> = {
 
 // ── Document versions ────────────────────────────────────────
 
+export type IntegrityStatus = "VERIFIED" | "TAMPER_ALERT" | "UNVERIFIED";
+
 export type DocVersion = {
   version: string;
-  hash: string;
+  hash: string; // Authoritative 64-char lowercase hex SHA-256 digest
+  sha256_hash?: string; // Explicit alias for SIH 26190 specification compliance
+  hash_algorithm?: "SHA-256";
+  hash_created_at?: string;
   size: number;
   mimeType: string;
   originalName: string;
+  original_filename?: string;
+  stored_filename?: string;
   uploadedAt: string;
   uploadedBy: string;
   uploadedById: string;
@@ -174,6 +181,9 @@ export type DocVersion = {
   signature: string | null;
   signedBy: string | null;
   note: string;
+  integrity_status?: IntegrityStatus;
+  last_verified_at?: string | null;
+  verification_count?: number;
 };
 
 // ── Case document ────────────────────────────────────────────
@@ -351,6 +361,9 @@ export type AuditEvent = {
   targetId: string;
   detail: string;
   hash: string | null;
+  expectedHash?: string | null;
+  computedHash?: string | null;
+  actionTaken?: string | null;
   ipAddress: string | null;
 };
 

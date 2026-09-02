@@ -96,11 +96,14 @@ export const fileDocument = createServerFn({ method: "POST" })
         name: z.string().min(1),
         category: z.enum(DOC_CATEGORIES),
         classification: classificationSchema,
-        hash: z.string().min(16),
-        size: z.number().nonnegative(),
+        hash: z.string().default(""),
+        size: z.number().nonnegative().default(0),
         note: z.string().default(""),
         tags: z.array(z.string()).default([]),
         documentId: z.string().optional(),
+        fileBase64: z.string().optional(),
+        mimeType: z.string().optional(),
+        originalFileName: z.string().optional(),
       })
       .parse(input),
   )
@@ -136,8 +139,8 @@ export const requestDownload = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data }) => {
-    const { getDownloadTarget } = await import("./dms.server");
-    return getDownloadTarget(data);
+    const { downloadDocumentWithIntegrity } = await import("./dms.server");
+    return downloadDocumentWithIntegrity(data);
   });
 
 export const checkIntegrity = createServerFn({ method: "POST" })
@@ -146,13 +149,48 @@ export const checkIntegrity = createServerFn({ method: "POST" })
       .object({
         actor: actorSchema,
         documentId: z.string().min(1),
-        computedHash: z.string().min(16),
+        computedHash: z.string().optional(),
+        version: z.string().optional(),
       })
       .parse(input),
   )
   .handler(async ({ data }) => {
-    const { verifyIntegrity } = await import("./dms.server");
-    return verifyIntegrity(data);
+    const { verifyStoredDocumentIntegrity } = await import("./dms.server");
+    return verifyStoredDocumentIntegrity({
+      actor: data.actor,
+      documentId: data.documentId,
+      version: data.version,
+    });
+  });
+
+export const simulateTamperFn = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        actor: actorSchema,
+        documentId: z.string().min(1),
+        version: z.string().optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { simulateTamperDocument } = await import("./dms.server");
+    return simulateTamperDocument(data);
+  });
+
+export const restoreDocumentFn = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        actor: actorSchema,
+        documentId: z.string().min(1),
+        version: z.string().optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { restoreDocumentFile } = await import("./dms.server");
+    return restoreDocumentFile(data);
   });
 
 export const applySignature = createServerFn({ method: "POST" })

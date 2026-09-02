@@ -1,7 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { AppShell } from "@/components/dms/shell";
-import { EmptyState, Label, Panel, ClassificationTag, StatusTag, formatDate, useSnapshot } from "@/components/dms/primitives";
+import {
+  EmptyState,
+  Label,
+  Panel,
+  ClassificationTag,
+  StatusTag,
+  IntegrityBadge,
+  Sha256Display,
+  formatDate,
+  useSnapshot,
+} from "@/components/dms/primitives";
 import { SearchFilters, type FilterState } from "@/components/dms/search-filters";
 import { useActor } from "@/components/dms/actor";
 import { canRead, shortHash } from "@/lib/dms-types";
@@ -112,13 +122,13 @@ function DocumentsPage() {
                       Classification
                     </th>
                     <th className="p-4 font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                      Workflow Status
+                      Workflow & Integrity
                     </th>
                     <th className="p-4 font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                       Last Updated
                     </th>
                     <th className="p-4 font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                      Digest (SHA-256)
+                      SHA-256 Digest
                     </th>
                     <th className="p-4"></th>
                   </tr>
@@ -147,14 +157,19 @@ function DocumentsPage() {
                         <td className="p-4">
                           <ClassificationTag value={doc.classification} />
                         </td>
-                        <td className="p-4">
-                          <StatusTag value={doc.status} />
+                        <td className="p-4 space-y-1">
+                          <div><StatusTag value={doc.status} /></div>
+                          <div><IntegrityBadge status={currentVersion?.integrity_status ?? (doc.status === "TAMPER_ALERT" ? "TAMPER_ALERT" : "VERIFIED")} /></div>
                         </td>
                         <td className="p-4 text-xs font-mono text-muted-foreground">
                           {formatDate(doc.updatedAt)}
                         </td>
-                        <td className="p-4 text-xs font-mono text-muted-foreground">
-                          {currentVersion ? shortHash(currentVersion.hash) : "—"}
+                        <td className="p-4 text-xs">
+                          {currentVersion ? (
+                            <Sha256Display hash={currentVersion.hash} />
+                          ) : (
+                            <span className="text-muted-foreground font-mono">—</span>
+                          )}
                         </td>
                         <td className="p-4 text-right">
                           <Link

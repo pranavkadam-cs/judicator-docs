@@ -3,7 +3,7 @@
  *  Uses Web Crypto PBKDF2 for password hashing — no native deps.
  * ───────────────────────────────────────────────────────────── */
 
-import type { Actor, Role, User } from "./dms-types";
+import type { Actor, AuditAction, Role, User } from "./dms-types";
 import { loadRegistry, saveRegistry } from "./registry.server";
 
 // ── Password hashing ────────────────────────────────────────
@@ -37,11 +37,11 @@ export async function hashPassword(password: string): Promise<string> {
     ["deriveBits"],
   );
   const derived = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", salt, iterations: ITERATIONS, hash: "SHA-256" },
+    { name: "PBKDF2", salt: salt.buffer as ArrayBuffer, iterations: ITERATIONS, hash: "SHA-256" },
     keyMaterial,
     KEY_LENGTH * 8,
   );
-  return `${buf2hex(salt)}:${buf2hex(derived)}`;
+  return `${buf2hex(salt.buffer as ArrayBuffer)}:${buf2hex(derived)}`;
 }
 
 export async function verifyPassword(
@@ -60,7 +60,7 @@ export async function verifyPassword(
     ["deriveBits"],
   );
   const derived = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", salt, iterations: ITERATIONS, hash: "SHA-256" },
+    { name: "PBKDF2", salt: salt.buffer as ArrayBuffer, iterations: ITERATIONS, hash: "SHA-256" },
     keyMaterial,
     KEY_LENGTH * 8,
   );
@@ -133,7 +133,7 @@ export async function loginUser(
       actor: user.name,
       actorId: user.id,
       role: user.role,
-      action: "USER_LOGIN",
+      action: "USER_LOGIN" as AuditAction,
       target: user.email,
       targetId: user.id,
       detail: "Authenticated successfully.",
@@ -160,7 +160,7 @@ export async function logoutUser(sessionId: string): Promise<void> {
           actor: user.name,
           actorId: user.id,
           role: user.role,
-          action: "USER_LOGOUT",
+          action: "USER_LOGOUT" as AuditAction,
           target: user.email,
           targetId: user.id,
           detail: "Session ended.",
@@ -216,7 +216,7 @@ export async function changeUserPassword(
       actor: user.name,
       actorId: user.id,
       role: user.role,
-      action: "PASSWORD_CHANGED",
+      action: "PASSWORD_CHANGED" as AuditAction,
       target: user.email,
       targetId: user.id,
       detail: "Password updated.",
@@ -269,7 +269,7 @@ export async function createUser(input: {
       actor: input.actor.name,
       actorId: input.actor.id,
       role: input.actor.role,
-      action: "USER_CREATED",
+      action: "USER_CREATED" as AuditAction,
       target: user.name,
       targetId: user.id,
       detail: `New ${input.role} account created for ${user.email}.`,
@@ -286,9 +286,9 @@ export async function createUser(input: {
 export async function updateUser(input: {
   actor: Actor;
   userId: string;
-  name?: string;
-  role?: Role;
-  isActive?: boolean;
+  name?: string | undefined;
+  role?: Role | undefined;
+  isActive?: boolean | undefined;
 }): Promise<User> {
   const reg = await loadRegistry();
   if (input.actor.role !== "ADMIN") {
@@ -319,7 +319,7 @@ export async function updateUser(input: {
         actor: input.actor.name,
         actorId: input.actor.id,
         role: input.actor.role,
-        action: input.isActive === false ? "USER_DEACTIVATED" : "USER_UPDATED",
+        action: (input.isActive === false ? "USER_DEACTIVATED" : "USER_UPDATED") as AuditAction,
         target: user.name,
         targetId: user.id,
         detail: changes.join(", "),

@@ -73,7 +73,7 @@ function CaseDossier() {
 
   // Filter documents inside this case based on user role clearance
   const visibleDocuments = useMemo(() => {
-    if (!data?.documents) return [];
+    if (!data?.documents || !actor) return [];
     return data.documents.filter(
       (item) => item.caseId === caseId && canRead(actor.role, item.classification),
     );
@@ -98,9 +98,10 @@ function CaseDossier() {
   }
 
   const isAssigned =
-    actor.role === "ADMIN" ||
-    dossier.leadId === actor.id ||
-    dossier.assignedOfficerIds?.includes(actor.id);
+    actor &&
+    (actor.role === "ADMIN" ||
+      dossier.leadId === actor.id ||
+      dossier.assignedOfficerIds?.includes(actor.id));
 
   return (
     <AppShell title={dossier.title} subtitle={dossier.caseNumber}>
@@ -109,7 +110,7 @@ function CaseDossier() {
           <Link to="/cases" className="font-mono text-[11px] uppercase text-primary hover:underline">
             ← Case dossiers
           </Link>
-          {isAssigned && actor.role !== "VIEWER" && (
+          {isAssigned && actor?.role !== "VIEWER" && (
             <button
               onClick={() => setEditOpen(!editOpen)}
               className="flex items-center gap-1.5 rounded-sm border border-border bg-surface px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider text-foreground hover:bg-accent cursor-pointer"
@@ -266,7 +267,7 @@ function CaseDossier() {
 
           {/* Secure intake form & Assigned officers panel */}
           <div className="space-y-6">
-            {isAssigned && actor.role !== "VIEWER" && (
+            {isAssigned && actor?.role !== "VIEWER" && (
               <IntakeForm caseId={dossier.id} documents={data?.documents.filter((d) => d.caseId === caseId) ?? []} />
             )}
 

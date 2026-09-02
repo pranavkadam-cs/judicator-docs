@@ -11,9 +11,34 @@ graph TD
     User([Security User]) -->|Interacts| Client[Vigil.OS Client - React / CSS]
     Client -->|Invokes Server Functions| ServerFn[TanStack Start Server Functions]
     ServerFn -->|Validates Sessions / RBAC| Auth[Auth Engine]
+    ServerFn -->|Authoritative SHA-256 Hashing| Crypto[Crypto Engine - crypto.server.ts]
     ServerFn -->|Performs DMS Operations| DMS[DMS Engine]
-    DMS -->|Reads/Writes| DB[(JSON Registry - .data/registry.json)]
-    DMS -.->|Optional S3 Storage| S3[Storage Gateway]
+    DMS -->|Reads/Writes Metadata| DB[(JSON Registry - .data/registry.json)]
+    DMS -->|Reads/Writes Physical Binary Files| Storage[(Secure Store - .data/storage/)]
+    DMS -.->|Optional Cloud Storage| S3[Storage Gateway]
+```
+
+---
+
+## 🔒 Cryptographic SHA-256 File Integrity Engine (SIH 26190)
+
+Vigil.OS implements a complete SHA-256 File Integrity Verification System designed for legal custody and forensic compliance:
+- **Client Pre-Upload Preview**: Instant SHA-256 computation in the browser via Web Crypto API.
+- **Server Authoritative Hashing**: Streaming and constant-time comparison (`crypto.timingSafeEqual`) on Node.js server.
+- **Physical Disk Storage**: Physical files isolated in `.data/storage/` with path-traversal prevention.
+- **Download Verification Gate**: Physical files are hashed on the fly before delivery. Mismatched files are **blocked**.
+- **Tamper Simulation & Detection**: Diagnostic tool for SIH judges to demonstrate real-time tamper alerts.
+- **File Integrity Monitoring**: Dedicated monitoring dashboard in the Security Audit view.
+
+📖 **Full Technical Documentation**: See [SHA256_INTEGRITY.md](file:///c:/Users/pranav/OneDrive/Desktop/sub/judicator-docs/SHA256_INTEGRITY.md)
+
+---
+
+## 🧪 Automated Testing
+
+Run the 10 automated test cases:
+```bash
+npm test
 ```
 
 ---
