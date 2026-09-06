@@ -28,7 +28,7 @@ When law enforcement, judicial officers, or forensic investigators upload case r
 
 ---
 
-## 3. Architecture & Modular Provider Pattern
+## 3. Architecture & Dual-Provider OCR Engine
 
 ```text
                                 USER UPLOAD
@@ -58,10 +58,19 @@ When law enforcement, judicial officers, or forensic investigators upload case r
         │                         │                  │
         │                         └──────────┬───────┘
         │                                    │
-        │                         ┌──────────▼──────────┐
-        │                         │  Tesseract Provider │
-        │                         │ (tesseract.js WASM) │
-        │                         └──────────┬──────────┘
+        │                    ┌───────────────▼───────────────┐
+        │                    │   Auto Provider Selection     │
+        │                    │   (OCR_PROVIDER env config)   │
+        │                    └───────────────┬───────────────┘
+        │                         ┌──────────┴──────────┐
+        │                         │                     │
+        │              ┌──────────▼──────────┐   ┌──────▼──────────┐
+        │              │ ☁ Google Cloud      │   │ Tesseract.js   │
+        │              │   Vision API        │   │ (WASM Local)   │
+        │              │ DOCUMENT_TEXT_DETECT │   │ Offline OCR    │
+        │              └──────────┬──────────┘   └──────┬─────────┘
+        │                         │    On Failure       │
+        │                         └──────► Fallback ────┘
         │                                    │
         └────────────────────┬───────────────┘
                              │
@@ -75,6 +84,14 @@ When law enforcement, judicial officers, or forensic investigators upload case r
                      │ Log Cryptographic Audit Trail │
                      └───────────────────────────────┘
 ```
+
+### Provider Strategy (Environment Controlled)
+
+| `OCR_PROVIDER` Value | Behavior |
+| :--- | :--- |
+| `auto` (default) | **Google Cloud Vision** primary → **Tesseract.js** automatic fallback on failure |
+| `google-vision` | Google Cloud Vision only (requires API key) |
+| `tesseract` | Local Tesseract.js only (offline, no API key needed) |
 
 ### OCR Provider Abstraction
 
@@ -91,7 +108,15 @@ export interface OCRProvider {
 }
 ```
 
-The system ships with `TesseractProvider` (powered by `tesseract.js`), which runs WebAssembly directly in Node.js worker threads without native compilation requirements. Developers or administrators can swap in alternative providers (e.g. native Tesseract CLI, AWS Textract, Google Cloud Vision, or Hyperledger Fabric notary gateways) via `setOCRProvider(customProvider)`.
+### Shipped Providers
+
+| Provider | Engine | Mode | Key Features |
+| :--- | :--- | :--- | :--- |
+| **`GoogleVisionProvider`** | Google Cloud Vision API v1 | Cloud (HTTP) | `DOCUMENT_TEXT_DETECTION`, block-level confidence, multi-language hints, enterprise accuracy |
+| **`TesseractProvider`** | Tesseract.js 7 (WASM) | Local (Offline) | WebAssembly in Node.js workers, no external dependencies, per-worker isolation |
+
+Developers or administrators can swap in custom providers (e.g., AWS Textract, Azure Document Intelligence, or Hyperledger Fabric notary gateways) via `setOCRProvider(customProvider)`.
+
 
 ---
 
