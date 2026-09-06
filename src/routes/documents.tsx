@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useMatch } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { AppShell } from "@/components/dms/shell";
 import {
@@ -24,6 +24,9 @@ export const Route = createFileRoute("/documents")({
 function DocumentsPage() {
   const { actor } = useActor();
   const { data, isPending } = useSnapshot();
+
+  // Check if a child route (document detail) is active
+  const childMatch = useMatch({ from: "/documents/$docId", shouldThrow: false });
 
   const [filters, setFilters] = useState<FilterState>({
     query: "",
@@ -92,6 +95,11 @@ function DocumentsPage() {
       return true;
     });
   }, [data, actor, filters]);
+
+  // If a child route is active, render the Outlet (document detail view)
+  if (childMatch) {
+    return <Outlet />;
+  }
 
   return (
     <AppShell title="Sealed Document Registry" subtitle="Secure Archiving division">

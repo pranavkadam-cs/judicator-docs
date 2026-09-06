@@ -65,10 +65,10 @@ When law enforcement, judicial officers, or forensic investigators upload case r
         │                         ┌──────────┴──────────┐
         │                         │                     │
         │              ┌──────────▼──────────┐   ┌──────▼──────────┐
-        │              │ ☁ Google Cloud      │   │ Tesseract.js   │
-        │              │   Vision API        │   │ (WASM Local)   │
-        │              │ DOCUMENT_TEXT_DETECT │   │ Offline OCR    │
-        │              └──────────┬──────────┘   └──────┬─────────┘
+        │              │ 🤖 Google Gemini    │   │ ⚡ Tesseract.js  │
+        │              │ 2.5 Multimodal OCR  │   │ (WASM Local)    │
+        │              │ SOTA Indian Langs   │   │ Offline Fallback│
+        │              └──────────┬──────────┘   └──────┬──────────┘
         │                         │    On Failure       │
         │                         └──────► Fallback ────┘
         │                                    │
@@ -89,9 +89,10 @@ When law enforcement, judicial officers, or forensic investigators upload case r
 
 | `OCR_PROVIDER` Value | Behavior |
 | :--- | :--- |
-| `auto` (default) | **Google Cloud Vision** primary → **Tesseract.js** automatic fallback on failure |
-| `google-vision` | Google Cloud Vision only (requires API key) |
-| `tesseract` | Local Tesseract.js only (offline, no API key needed) |
+| `auto` (default) | **Google Gemini 2.5 Multimodal AI** primary → **Tesseract.js** automatic fallback on failure |
+| `gemini` | Google Gemini 2.5 Flash Multimodal AI only |
+| `google-vision` | Google Cloud Vision only (requires OAuth/API key) |
+| `tesseract` | Local Tesseract.js only (offline WASM, no API key needed) |
 
 ### OCR Provider Abstraction
 

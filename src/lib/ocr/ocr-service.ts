@@ -4,7 +4,8 @@
  *  page boundary preservation, and graceful failure isolation.
  *
  *  Provider Strategy:
- *  - "auto" (default): Google Cloud Vision primary → Tesseract fallback
+ *  - "auto" (default): Google Gemini AI primary → Tesseract fallback
+ *  - "gemini": Google Gemini Multimodal AI only
  *  - "google-vision": Google Cloud Vision only
  *  - "tesseract": Local Tesseract.js only
  * ───────────────────────────────────────────────────────────── */
@@ -12,6 +13,7 @@
 import type { OCRProcessingInput, OCRProvider, OCRResult, OCRStatus } from "./ocr-types";
 import { DEFAULT_OCR_LANGUAGE } from "./ocr-types";
 import { TesseractProvider } from "./tesseract-provider";
+import { GeminiOCRProvider } from "./gemini-ocr-provider";
 import { GoogleVisionProvider } from "./google-vision-provider";
 import { extractFromPdf } from "./pdf-extractor";
 
@@ -19,10 +21,27 @@ import { extractFromPdf } from "./pdf-extractor";
 
 /**
  * Resolves the configured OCR provider mode from environment.
- * Options: "auto" | "google-vision" | "tesseract"
+ * Options: "auto" | "gemini" | "google-vision" | "tesseract"
  */
 function getProviderMode(): string {
   return (process.env["OCR_PROVIDER"] || "auto").toLowerCase().trim();
+}
+
+/**
+ * Attempts to create a Google Gemini AI OCR provider.
+ * Returns null if credentials are missing or invalid.
+ */
+function tryCreateGeminiProvider(): GeminiOCRProvider | null {
+  try {
+    const apiKey =
+      process.env["GEMINI_API_KEY"] ||
+      process.env["GOOGLE_CLOUD_VISION_API_KEY"] ||
+      process.env["GOOGLE_API_KEY"];
+    if (!apiKey) return null;
+    return new GeminiOCRProvider(apiKey);
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -40,28 +59,35 @@ function tryCreateGoogleVisionProvider(): GoogleVisionProvider | null {
 }
 
 // Initialize providers based on environment
+let geminiProvider: GeminiOCRProvider | null = null;
 let googleVisionProvider: GoogleVisionProvider | null = null;
 let tesseractProvider: OCRProvider = new TesseractProvider();
-let defaultProvider: OCRProvider;
+let defaultProvider: OCRProvider = tesseractProvider;
 
 // Lazy initialization to allow environment to load
 function initProviders(): void {
   const mode = getProviderMode();
 
-  if (mode === "google-vision" || mode === "auto") {
-    googleVisionProvider = tryCreateGoogleVisionProvider();
-  }
+  geminiProvider = tryCreateGeminiProvider();
+  googleVisionProvider = tryCreateGoogleVisionProvider();
 
-  if (mode === "google-vision" && googleVisionProvider) {
+  if (mode === "gemini" && geminiProvider) {
+    defaultProvider = geminiProvider;
+  } else if (mode === "google-vision" && googleVisionProvider) {
     defaultProvider = googleVisionProvider;
   } else if (mode === "tesseract") {
     defaultProvider = tesseractProvider;
-  } else if (mode === "auto" && googleVisionProvider) {
-    // Auto mode: Google Vision is primary, but recognize() handles fallback
-    defaultProvider = googleVisionProvider;
+  } else if (mode === "auto") {
+    // Auto mode: Google Gemini AI is primary, Tesseract is fallback
+    if (geminiProvider) {
+      defaultProvider = geminiProvider;
+    } else if (googleVisionProvider) {
+      defaultProvider = googleVisionProvider;
+    } else {
+      defaultProvider = tesseractProvider;
+    }
   } else {
-    // Fallback to Tesseract if Google Vision is unavailable
-    defaultProvider = tesseractProvider;
+    defaultProvider = geminiProvider || tesseractProvider;
   }
 }
 
@@ -128,7 +154,7 @@ function isPlaintextFile(mimeType: string, filename: string): boolean {
 
 /**
  * Performs OCR recognition with automatic fallback.
- * In "auto" mode: tries Google Cloud Vision first, falls back to Tesseract on failure.
+ * In "auto" mode: tries Gemini AI first, falls back to Tesseract on failure.
  */
 async function recognizeWithFallback(
   imageBuffer: Buffer,
@@ -137,22 +163,21 @@ async function recognizeWithFallback(
 ): Promise<{ text: string; confidence?: number; engine: string }> {
   const mode = getProviderMode();
 
-  // If mode is "auto" and we have both providers, try Google first then fallback
-  if (mode === "auto" && googleVisionProvider) {
+  // If mode is "auto" and primary is Gemini, attempt Gemini with graceful Tesseract fallback
+  if ((mode === "auto" || mode === "gemini") && geminiProvider) {
     try {
-      const result = await googleVisionProvider.recognize(imageBuffer, language);
-      return { ...result, engine: googleVisionProvider.name };
-    } catch (visionError: any) {
+      const result = await geminiProvider.recognize(imageBuffer, language);
+      return { ...result, engine: geminiProvider.name };
+    } catch (geminiError: any) {
       console.warn(
-        `[Vigil.OS OCR] Google Cloud Vision failed, falling back to Tesseract: ${visionError.message}`
+        `[Vigil.OS OCR] Google Gemini AI failed, falling back to Tesseract: ${geminiError.message}`
       );
-      // Fallback to Tesseract
       try {
         const fallbackResult = await tesseractProvider.recognize(imageBuffer, language);
         return { ...fallbackResult, engine: `${tesseractProvider.name} (fallback)` };
       } catch (tesseractError: any) {
         throw new Error(
-          `Both OCR engines failed. Vision: ${visionError.message}. Tesseract: ${tesseractError.message}`
+          `Both OCR engines failed. Gemini: ${geminiError.message}. Tesseract: ${tesseractError.message}`
         );
       }
     }
@@ -242,6 +267,28 @@ export async function processDocumentOCR(
         }
       }
 
+      // If Gemini provider is active, it can process PDFs natively!
+      if (geminiProvider) {
+        try {
+          const geminiPdfResult = await geminiProvider.recognize(input.fileBuffer, lang);
+          if (geminiPdfResult.text.trim()) {
+            return {
+              status: "COMPLETED",
+              text: geminiPdfResult.text.trim(),
+              source: "OCR_SCANNED_PDF",
+              language: lang,
+              engine: geminiProvider.name,
+              pageCount: pdfExtract.pageCount || 1,
+              confidence: geminiPdfResult.confidence || 98,
+              processedAt: new Date().toISOString(),
+              durationMs: Date.now() - startTime,
+            };
+          }
+        } catch {
+          // Fall through to text fallback
+        }
+      }
+
       // If PDF text was minimal but present
       if (pdfExtract.text.trim()) {
         return {
@@ -269,7 +316,7 @@ export async function processDocumentOCR(
       };
     }
 
-    // ── 2. Image OCR (PNG, JPG, JPEG, TIFF) ──────────────────────
+    // ── 2. Image OCR (PNG, JPG, JPEG, TIFF, WebP) ────────────────
     if (isImageFile(mimeType, filename)) {
       const ocrRes = await recognizeWithFallback(input.fileBuffer, lang, activeProvider);
 

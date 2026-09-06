@@ -345,4 +345,13 @@ describe("Judicator Docs — OCR (Optical Character Recognition) Engine", () => 
     assert.equal(ocrResult.text, "NOTARIZED OCR PROOF");
     assert.equal(ocrResult.confidence, 99);
   });
+
+  // ── TEST 11: Google Gemini Multimodal AI OCR Engine ───────────
+  test("TEST 11: GeminiOCRProvider initializes with API key and conforms to OCRProvider contract", async () => {
+    const { GeminiOCRProvider } = await import("../src/lib/ocr/gemini-ocr-provider");
+    const gemini = new GeminiOCRProvider("test-gemini-key");
+    assert.equal(gemini.name, "Google Gemini 2.5 Multimodal AI OCR");
+    assert.equal(typeof gemini.recognize, "function");
+    assert.equal(typeof gemini.cleanup, "function");
+  });
 });
