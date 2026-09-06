@@ -41,6 +41,10 @@ import {
   simulateTamperFile,
 } from "./storage.server";
 import { processDocumentOCR } from "./ocr/ocr-service";
+import {
+  isGoogleCloudStorageConfigured,
+  uploadToGoogleCloud,
+} from "./google-cloud-storage.server";
 
 function id(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
@@ -328,7 +332,29 @@ export async function registerDocument(input: {
   // Persist original file to local storage (before OCR, ensuring forensic custody)
   await saveLocalFile(objectKey, fileBuffer);
 
+  // Persist case file to Google Cloud Storage infrastructure
+  let cloudUpload: { fileUri: string; name: string } | null = null;
+  if (isGoogleCloudStorageConfigured() && process.env["NODE_ENV"] !== "test") {
+    try {
+      const gcsResult = await uploadToGoogleCloud(
+        objectKey,
+        fileBuffer,
+        mimeType,
+        `${refId}-${version}-${originalFileName}`,
+      );
+      if (gcsResult.success) {
+        cloudUpload = {
+          fileUri: gcsResult.fileUri,
+          name: gcsResult.name,
+        };
+      }
+    } catch (gcsErr: any) {
+      console.warn(`[Vigil.OS] Google Cloud Storage upload note: ${gcsErr.message}`);
+    }
+  }
+
   const signed = await signUpload(objectKey).catch(() => null);
+  const activeStorage = cloudUpload ? "google-cloud" : signed ? "s3" : "local";
 
   // Execute Optical Character Recognition (OCR) / Text Extraction
   // Note: Operates on original byte stream; original file and SHA-256 are unchanged
@@ -360,6 +386,9 @@ export async function registerDocument(input: {
     integrity_status: "VERIFIED",
     last_verified_at: now,
     verification_count: 1,
+    cloud_uri: cloudUpload?.fileUri,
+    cloud_name: cloudUpload?.name,
+    cloud_project: "324957553228",
     ocr_status: ocrResult.status,
     ocr_text: ocrResult.text,
     ocr_processed_at: ocrResult.processedAt,
@@ -372,7 +401,12 @@ export async function registerDocument(input: {
       existing.currentVersion = version;
       existing.updatedAt = now;
       existing.status = "SEALED";
-      existing.storage = signed ? "s3" : "local";
+      existing.storage = activeStorage;
+      if (cloudUpload) {
+        existing.cloud_uri = cloudUpload.fileUri;
+        existing.cloud_name = cloudUpload.name;
+        existing.cloud_project = "324957553228";
+      }
       existing.ocr_status = ocrResult.status;
       existing.ocr_text = ocrResult.text;
       existing.ocr_language = ocrResult.language;
@@ -388,7 +422,7 @@ export async function registerDocument(input: {
         "VERSION_ADDED",
         doc.name,
         doc.id,
-        `Revision ${version} sealed with SHA-256 (${authoritativeHash.slice(0, 8)}...).`,
+        `Revision ${version} stored in ${activeStorage === "google-cloud" ? "Google Cloud" : activeStorage.toUpperCase()} & sealed with SHA-256 (${authoritativeHash.slice(0, 8)}...).`,
         authoritativeHash,
         {
           expectedHash: authoritativeHash,
@@ -412,7 +446,10 @@ export async function registerDocument(input: {
         updatedAt: now,
         createdAt: now,
         createdById: input.actor.id,
-        storage: signed ? "s3" : "local",
+        storage: activeStorage,
+        cloud_uri: cloudUpload?.fileUri,
+        cloud_name: cloudUpload?.name,
+        cloud_project: "324957553228",
         ocr_status: ocrResult.status,
         ocr_text: ocrResult.text,
         ocr_language: ocrResult.language,
@@ -429,7 +466,7 @@ export async function registerDocument(input: {
         "DOCUMENT_UPLOADED",
         doc.name,
         doc.id,
-        `Ingested as ${doc.category} and sealed with SHA-256 digest (${authoritativeHash.slice(0, 8)}...).`,
+        `Ingested into ${activeStorage === "google-cloud" ? "Google Cloud Storage" : activeStorage.toUpperCase()} as ${doc.category} and sealed with SHA-256 digest (${authoritativeHash.slice(0, 8)}...).`,
         authoritativeHash,
         {
           expectedHash: authoritativeHash,

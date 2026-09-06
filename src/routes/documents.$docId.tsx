@@ -364,7 +364,15 @@ function DocumentDetailsPage() {
             <div>
               <Label>Storage Subsystem</Label>
               <dd className="mt-1 text-foreground font-mono">
-                {doc.storage === "s3" ? "S3 Object Store" : "Secure Local Store (.data/storage)"}
+                {doc.storage === "google-cloud" ? (
+                  <span className="text-primary font-bold inline-flex items-center gap-1">
+                    ☁ Google Cloud Storage (Project: {doc.cloud_project || "324957553228"})
+                  </span>
+                ) : doc.storage === "s3" ? (
+                  "S3 Object Store"
+                ) : (
+                  "Secure Local Store (.data/storage)"
+                )}
               </dd>
             </div>
             <div>
@@ -412,6 +420,13 @@ function DocumentDetailsPage() {
                   : "Status: Sealed on intake"}
               </span>
             </div>
+
+            {doc.storage === "google-cloud" && (
+              <div className="flex flex-wrap items-center justify-between text-[11px] font-mono text-primary/90 pt-1.5 border-t border-border/50">
+                <span>☁ Google Cloud Resource: {doc.cloud_name || current?.cloud_name || "Synced on intake"}</span>
+                <span>Project: {doc.cloud_project || "324957553228"}</span>
+              </div>
+            )}
           </div>
         </Panel>
 

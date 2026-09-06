@@ -184,6 +184,9 @@ export type DocVersion = {
   integrity_status?: IntegrityStatus;
   last_verified_at?: string | null;
   verification_count?: number;
+  cloud_uri?: string | undefined;
+  cloud_name?: string | undefined;
+  cloud_project?: string | undefined;
   ocr_status?: import("./ocr/ocr-types").OCRStatus | undefined;
   ocr_text?: string | undefined;
   ocr_processed_at?: string | undefined;
@@ -206,7 +209,10 @@ export type CaseDocument = {
   updatedAt: string;
   createdAt: string;
   createdById: string;
-  storage: "s3" | "registry" | "local";
+  storage: "google-cloud" | "s3" | "registry" | "local";
+  cloud_uri?: string | undefined;
+  cloud_name?: string | undefined;
+  cloud_project?: string | undefined;
   // OCR Intelligence & Extracted Forensic Text
   ocr_status?: import("./ocr/ocr-types").OCRStatus | undefined;
   ocr_text?: string | undefined;

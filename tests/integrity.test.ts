@@ -1,3 +1,4 @@
+process.env["NODE_ENV"] = "test";
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { Readable } from "node:stream";
@@ -313,5 +314,14 @@ describe("SIH Problem Statement 26190: SHA-256 File Integrity Verification Engin
     assert.ok(uploadRes.document.id);
     assert.equal(uploadRes.document.category, "Judgment");
     assert.equal(uploadRes.document.status, "DRAFT");
+  });
+
+  test("TEST 11: Google Cloud Storage configuration and upload subsystem", async () => {
+    const { isGoogleCloudStorageConfigured, uploadToGoogleCloud } = await import(
+      "../src/lib/google-cloud-storage.server"
+    );
+    assert.equal(typeof isGoogleCloudStorageConfigured, "function");
+    assert.equal(typeof uploadToGoogleCloud, "function");
+    assert.equal(isGoogleCloudStorageConfigured(), true, "Google Cloud Storage should be detected as configured with API key");
   });
 });

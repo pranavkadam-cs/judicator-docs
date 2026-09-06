@@ -88,6 +88,11 @@ export async function saveRegistry(reg: Registry): Promise<void> {
   await saveToFile(reg);
 }
 
-export function storageMode(): "s3" | "local" {
+import { isGoogleCloudStorageConfigured } from "./google-cloud-storage.server";
+
+export function storageMode(): "google-cloud" | "s3" | "local" {
+  if (isGoogleCloudStorageConfigured()) {
+    return "google-cloud";
+  }
   return s3Configured() ? "s3" : "local";
 }
