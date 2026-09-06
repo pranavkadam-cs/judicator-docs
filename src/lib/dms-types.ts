@@ -184,6 +184,9 @@ export type DocVersion = {
   integrity_status?: IntegrityStatus;
   last_verified_at?: string | null;
   verification_count?: number;
+  ocr_status?: import("./ocr/ocr-types").OCRStatus | undefined;
+  ocr_text?: string | undefined;
+  ocr_processed_at?: string | undefined;
 };
 
 // ── Case document ────────────────────────────────────────────
@@ -204,6 +207,15 @@ export type CaseDocument = {
   createdAt: string;
   createdById: string;
   storage: "s3" | "registry" | "local";
+  // OCR Intelligence & Extracted Forensic Text
+  ocr_status?: import("./ocr/ocr-types").OCRStatus | undefined;
+  ocr_text?: string | undefined;
+  ocr_language?: string | undefined;
+  ocr_processed_at?: string | undefined;
+  ocr_engine?: string | undefined;
+  ocr_error?: string | undefined;
+  ocr_page_count?: number | undefined;
+  ocr_source?: import("./ocr/ocr-types").OCRSource | undefined;
 };
 
 // ── Case management ──────────────────────────────────────────
@@ -348,7 +360,10 @@ export type AuditAction =
   | "CASE_CREATED"
   | "CASE_UPDATED"
   | "CASE_CLOSED"
-  | "ASSET_LIFECYCLE";
+  | "ASSET_LIFECYCLE"
+  | "OCR_PROCESSING_STARTED"
+  | "OCR_COMPLETED"
+  | "OCR_FAILED";
 
 export type AuditEvent = {
   id: string;
@@ -390,6 +405,8 @@ export const ALLOWED_MIME_TYPES = [
   "image/png",
   "image/jpeg",
   "image/jpg",
+  "image/tiff",
+  "image/tif",
 ] as const;
 
 export const MAX_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB

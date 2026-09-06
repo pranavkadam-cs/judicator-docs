@@ -40,6 +40,7 @@ import {
   saveLocalFile,
   simulateTamperFile,
 } from "./storage.server";
+import { processDocumentOCR } from "./ocr/ocr-service";
 
 function id(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
@@ -260,6 +261,7 @@ export async function registerDocument(input: {
   fileBase64?: string | undefined;
   mimeType?: string | undefined;
   originalFileName?: string | undefined;
+  ocrLanguage?: string | undefined;
 }) {
   const reg = await loadRegistry();
   if (!ROLE_PROFILE[input.actor.role].canUpload) {
@@ -323,10 +325,19 @@ export async function registerDocument(input: {
   const mimeType = input.mimeType || "application/pdf";
   const finalSize = fileBuffer.length;
 
-  // Persist file to local storage
+  // Persist original file to local storage (before OCR, ensuring forensic custody)
   await saveLocalFile(objectKey, fileBuffer);
 
   const signed = await signUpload(objectKey).catch(() => null);
+
+  // Execute Optical Character Recognition (OCR) / Text Extraction
+  // Note: Operates on original byte stream; original file and SHA-256 are unchanged
+  const ocrResult = await processDocumentOCR({
+    fileBuffer,
+    mimeType,
+    filename: originalFileName,
+    language: input.ocrLanguage,
+  });
 
   const newVersion: DocVersion = {
     version,
@@ -349,6 +360,9 @@ export async function registerDocument(input: {
     integrity_status: "VERIFIED",
     last_verified_at: now,
     verification_count: 1,
+    ocr_status: ocrResult.status,
+    ocr_text: ocrResult.text,
+    ocr_processed_at: ocrResult.processedAt,
   };
 
   let doc: CaseDocument;
@@ -359,6 +373,14 @@ export async function registerDocument(input: {
       existing.updatedAt = now;
       existing.status = "SEALED";
       existing.storage = signed ? "s3" : "local";
+      existing.ocr_status = ocrResult.status;
+      existing.ocr_text = ocrResult.text;
+      existing.ocr_language = ocrResult.language;
+      existing.ocr_processed_at = ocrResult.processedAt;
+      existing.ocr_engine = ocrResult.engine;
+      existing.ocr_error = ocrResult.error;
+      existing.ocr_page_count = ocrResult.pageCount;
+      existing.ocr_source = ocrResult.source;
       doc = existing;
       record(
         reg,
@@ -391,6 +413,14 @@ export async function registerDocument(input: {
         createdAt: now,
         createdById: input.actor.id,
         storage: signed ? "s3" : "local",
+        ocr_status: ocrResult.status,
+        ocr_text: ocrResult.text,
+        ocr_language: ocrResult.language,
+        ocr_processed_at: ocrResult.processedAt,
+        ocr_engine: ocrResult.engine,
+        ocr_error: ocrResult.error,
+        ocr_page_count: ocrResult.pageCount,
+        ocr_source: ocrResult.source,
       };
       reg.documents = [doc, ...reg.documents];
       record(
@@ -405,6 +435,22 @@ export async function registerDocument(input: {
           expectedHash: authoritativeHash,
           computedHash: authoritativeHash,
           actionTaken: "DOCUMENT_SEALED",
+        },
+      );
+
+      // Record separate immutable audit event for OCR processing
+      record(
+        reg,
+        input.actor,
+        ocrResult.status === "FAILED" ? "OCR_FAILED" : "OCR_COMPLETED",
+        doc.name,
+        doc.id,
+        ocrResult.status === "FAILED"
+          ? `OCR processing failed: ${ocrResult.error || "Unknown error"}. Original document preserved.`
+          : `OCR extracted ${ocrResult.text.length} characters via ${ocrResult.engine} (${ocrResult.source}, ${ocrResult.pageCount} page(s)).`,
+        authoritativeHash,
+        {
+          actionTaken: ocrResult.status === "FAILED" ? "OCR_FAILED" : "OCR_COMPLETED",
         },
       );
 
@@ -444,6 +490,12 @@ export async function registerDocument(input: {
     sha256: authoritativeHash,
     hashAlgorithm: "SHA-256",
     integrityStatus: "VERIFIED",
+    ocrStatus: ocrResult.status,
+    ocrLanguage: ocrResult.language,
+    ocrEngine: ocrResult.engine,
+    ocrSource: ocrResult.source,
+    ocrPageCount: ocrResult.pageCount,
+    ocrTextPreview: ocrResult.text ? ocrResult.text.slice(0, 150) : "",
   };
 }
 
@@ -1168,3 +1220,174 @@ export async function advanceAsset(input: {
   await saveRegistry(reg);
   return asset;
 }
+
+// ── OCR Management & Intelligence ────────────────────────────
+
+/**
+ * Re-processes or triggers OCR on an existing archived document.
+ * Requires sufficient clearance and upload/management authority.
+ */
+export async function processDocumentOCRFn(input: {
+  actor: Actor;
+  documentId: string;
+  version?: string | undefined;
+  language?: string | undefined;
+}) {
+  const reg = await loadRegistry();
+  const doc = reg.documents.find((d) => d.id === input.documentId);
+  if (!doc) throw new Error("Document not found in the archive.");
+
+  // Security Clearance validation
+  if (ROLE_PROFILE[input.actor.role].clearance < CLEARANCE[doc.classification]) {
+    throw new Error(`Access denied: Document clearance (${doc.classification}) exceeds your authorization.`);
+  }
+
+  const v = doc.versions.find((x) => x.version === (input.version ?? doc.currentVersion));
+  if (!v) throw new Error("Requested document revision not found.");
+
+  // Retrieve raw file bytes from secure store
+  const fileBytes = await retrieveFileBytes(v.objectKey);
+  if (!fileBytes) {
+    throw new Error("Physical document file could not be retrieved from secure storage.");
+  }
+
+  // Set processing status
+  doc.ocr_status = "PROCESSING";
+  await saveRegistry(reg);
+
+  const ocrResult = await processDocumentOCR({
+    fileBuffer: fileBytes,
+    mimeType: v.mimeType,
+    filename: v.originalName,
+    language: input.language || doc.ocr_language,
+  });
+
+  // Update document and version metadata
+  doc.ocr_status = ocrResult.status;
+  doc.ocr_text = ocrResult.text;
+  doc.ocr_language = ocrResult.language;
+  doc.ocr_processed_at = ocrResult.processedAt;
+  doc.ocr_engine = ocrResult.engine;
+  doc.ocr_error = ocrResult.error;
+  doc.ocr_page_count = ocrResult.pageCount;
+  doc.ocr_source = ocrResult.source;
+
+  v.ocr_status = ocrResult.status;
+  v.ocr_text = ocrResult.text;
+  v.ocr_processed_at = ocrResult.processedAt;
+
+  record(
+    reg,
+    input.actor,
+    ocrResult.status === "FAILED" ? "OCR_FAILED" : "OCR_COMPLETED",
+    doc.name,
+    doc.id,
+    ocrResult.status === "FAILED"
+      ? `On-demand OCR failed: ${ocrResult.error || "Unknown error"}.`
+      : `On-demand OCR completed via ${ocrResult.engine} (${ocrResult.text.length} chars).`,
+    v.hash,
+    {
+      actionTaken: ocrResult.status === "FAILED" ? "OCR_FAILED" : "OCR_COMPLETED",
+    },
+  );
+
+  await saveRegistry(reg);
+
+  return {
+    documentId: doc.id,
+    ocrStatus: ocrResult.status,
+    ocrLanguage: ocrResult.language,
+    ocrEngine: ocrResult.engine,
+    ocrSource: ocrResult.source,
+    ocrPageCount: ocrResult.pageCount,
+    ocrError: ocrResult.error ?? null,
+    ocrProcessedAt: ocrResult.processedAt,
+    ocrTextLength: ocrResult.text.length,
+    sha256: v.hash,
+  };
+}
+
+/**
+ * Retrieves the extracted OCR text for a document.
+ * Strictly gated by role clearance and document permissions.
+ */
+export async function getDocumentExtractedText(input: {
+  actor: Actor;
+  documentId: string;
+}): Promise<{
+  documentId: string;
+  name: string;
+  ocrStatus: import("./ocr/ocr-types").OCRStatus;
+  ocrText: string;
+  ocrLanguage: string;
+  ocrEngine: string;
+  ocrSource: string;
+  ocrPageCount: number;
+  ocrProcessedAt: string;
+  sha256: string;
+}> {
+  const reg = await loadRegistry();
+  const doc = reg.documents.find((d) => d.id === input.documentId);
+  if (!doc) throw new Error("Document not found in the archive.");
+
+  // Clearance Gate: Viewer with lower clearance cannot read sensitive document OCR
+  if (ROLE_PROFILE[input.actor.role].clearance < CLEARANCE[doc.classification]) {
+    record(
+      reg,
+      input.actor,
+      "ACCESS_DENIED",
+      doc.name,
+      doc.id,
+      `OCR text inspection blocked: ${doc.classification} exceeds clearance.`,
+    );
+    await saveRegistry(reg);
+    throw new Error(`Security Exception: ${doc.classification} classification exceeds your clearance level.`);
+  }
+
+  const currentVersion = doc.versions.find((v) => v.version === doc.currentVersion) || doc.versions[0];
+
+  return {
+    documentId: doc.id,
+    name: doc.name,
+    ocrStatus: doc.ocr_status || "NOT_REQUIRED",
+    ocrText: doc.ocr_text || "",
+    ocrLanguage: doc.ocr_language || "eng",
+    ocrEngine: doc.ocr_engine || "None",
+    ocrSource: doc.ocr_source || "NOT_REQUIRED",
+    ocrPageCount: doc.ocr_page_count || 1,
+    ocrProcessedAt: doc.ocr_processed_at || doc.updatedAt,
+    sha256: currentVersion?.hash || "",
+  };
+}
+
+/**
+ * Returns lightweight OCR metadata and status without heavy text payloads.
+ */
+export async function getDocumentOCRStatus(input: {
+  actor: Actor;
+  documentId: string;
+}) {
+  const reg = await loadRegistry();
+  const doc = reg.documents.find((d) => d.id === input.documentId);
+  if (!doc) throw new Error("Document not found.");
+
+  if (ROLE_PROFILE[input.actor.role].clearance < CLEARANCE[doc.classification]) {
+    throw new Error(`Access denied: Document classification exceeds clearance.`);
+  }
+
+  const currentVersion = doc.versions.find((v) => v.version === doc.currentVersion) || doc.versions[0];
+
+  return {
+    documentId: doc.id,
+    fileName: currentVersion?.originalName || doc.name,
+    ocrStatus: doc.ocr_status || "NOT_REQUIRED",
+    ocrLanguage: doc.ocr_language || "eng",
+    ocrEngine: doc.ocr_engine || "None",
+    ocrSource: doc.ocr_source || "NOT_REQUIRED",
+    ocrPageCount: doc.ocr_page_count || 1,
+    ocrProcessedAt: doc.ocr_processed_at || null,
+    ocrError: doc.ocr_error || null,
+    sha256: currentVersion?.hash || "",
+  };
+}
+

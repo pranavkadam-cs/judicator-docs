@@ -24,11 +24,26 @@ import {
   requestDownload,
   simulateTamperFn,
   restoreDocumentFn,
+  triggerOCR,
 } from "@/lib/dms.functions";
-import { shortHash, ROLE_PROFILE, CLASSIFICATIONS, type Classification } from "@/lib/dms-types";
+import { shortHash, ROLE_PROFILE, CLASSIFICATIONS, canRead, type Classification } from "@/lib/dms-types";
+import { SUPPORTED_OCR_LANGUAGES } from "@/lib/ocr/ocr-types";
 import { WorkflowActions } from "@/components/dms/workflow-actions";
 import { SharePanel } from "@/components/dms/share-panel";
-import { ShieldCheck, ShieldAlert, Download, Copy, RefreshCw, Key, AlertTriangle, CheckCircle2 } from "lucide-react";
+import {
+  ShieldCheck,
+  ShieldAlert,
+  Download,
+  Copy,
+  RefreshCw,
+  Key,
+  AlertTriangle,
+  CheckCircle2,
+  FileText,
+  Search,
+  Sparkles,
+  ExternalLink,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/documents/$docId")({
@@ -64,10 +79,14 @@ function DocumentDetailsPage() {
   const restore = useServerFn(restoreDocumentFn);
   const sign = useServerFn(applySignature);
   const reclassify = useServerFn(reclassifyDocument);
+  const reocr = useServerFn(triggerOCR);
 
   const [busy, setBusy] = useState("");
   const [copied, setCopied] = useState(false);
-  const [activeTab, setActiveTab] = useState<"history" | "sharing">("history");
+  const [copiedText, setCopiedText] = useState(false);
+  const [activeTab, setActiveTab] = useState<"ocr" | "history" | "sharing">("ocr");
+  const [ocrSearch, setOcrSearch] = useState("");
+  const [ocrLangSelection, setOcrLangSelection] = useState("eng");
 
   const doc = data?.documents.find((d) => d.id === docId);
   const cs = data?.cases.find((c) => c.id === doc?.caseId);
@@ -238,6 +257,54 @@ function DocumentDetailsPage() {
     toast.success("SHA-256 digest copied to clipboard.");
     setTimeout(() => setCopied(false), 2500);
   }
+
+  function handleCopyOCR() {
+    if (!doc?.ocr_text) return;
+    navigator.clipboard.writeText(doc.ocr_text);
+    setCopiedText(true);
+    toast.success("Extracted OCR text copied to clipboard.");
+    setTimeout(() => setCopiedText(false), 2500);
+  }
+
+  function handleExportOCR() {
+    if (!doc?.ocr_text) return;
+    const blob = new Blob([doc.ocr_text], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${doc.refId}-extracted-ocr.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast.success("OCR text file downloaded.");
+  }
+
+  async function handleTriggerOCR() {
+    if (!doc || !actor) return;
+    setBusy("ocr");
+    try {
+      const res = await reocr({
+        data: {
+          actor,
+          documentId: doc.id,
+          language: ocrLangSelection,
+        },
+      });
+      if (res.ocrStatus === "COMPLETED") {
+        toast.success(`✓ OCR Complete! Extracted ${res.ocrTextLength} characters (${res.ocrPageCount} pg).`);
+      } else {
+        toast.error(`⚠ OCR Execution Failed: ${res.ocrError || "Unreadable image"}`);
+      }
+      await refresh();
+    } catch (e: any) {
+      toast.error(e.message || "Failed to execute OCR");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  const hasClearance = actor ? canRead(actor.role, doc.classification) : false;
 
   return (
     <AppShell title={doc.name} subtitle={`Docket: ${doc.refId}`}>
@@ -434,6 +501,23 @@ function DocumentDetailsPage() {
         <div className="space-y-4">
           <div className="flex border-b border-border">
             <button
+              onClick={() => setActiveTab("ocr")}
+              className={`px-4 py-2 font-mono text-xs font-bold uppercase tracking-wider border-b-2 cursor-pointer flex items-center gap-1.5 ${
+                activeTab === "ocr"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <FileText className="size-3.5" />
+              <span>OCR & Extracted Text</span>
+              {doc.ocr_status === "COMPLETED" && (
+                <span className="text-[9px] text-seal font-mono">✓</span>
+              )}
+              {doc.ocr_status === "FAILED" && (
+                <span className="text-[9px] text-destructive font-mono">⚠</span>
+              )}
+            </button>
+            <button
               onClick={() => setActiveTab("history")}
               className={`px-4 py-2 font-mono text-xs font-bold uppercase tracking-wider border-b-2 cursor-pointer ${
                 activeTab === "history"
@@ -455,7 +539,138 @@ function DocumentDetailsPage() {
             </button>
           </div>
 
-          {activeTab === "history" ? (
+          {activeTab === "ocr" ? (
+            <Panel className="p-5 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Label>Optical Character Recognition (OCR) Intelligence</Label>
+                    <StatusTag value={doc.ocr_status || "NOT_REQUIRED"} />
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Engine: <strong className="text-foreground">{doc.ocr_engine || "Tesseract OCR / PDF Parser"}</strong> · Source: <span className="font-mono text-foreground">{doc.ocr_source || "N/A"}</span> · Language: <span className="font-mono uppercase text-foreground">{doc.ocr_language || "eng"}</span> · Pages: <span className="font-mono text-foreground">{doc.ocr_page_count || 1}</span>
+                  </p>
+                </div>
+
+                {hasClearance && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      value={ocrLangSelection}
+                      onChange={(e) => setOcrLangSelection(e.target.value)}
+                      className="rounded-sm border border-border bg-background px-2 py-1 font-mono text-[10px] uppercase cursor-pointer"
+                      title="Select language for OCR re-run"
+                    >
+                      {SUPPORTED_OCR_LANGUAGES.map((l) => (
+                        <option key={l.code} value={l.code}>
+                          {l.label}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={handleTriggerOCR}
+                      disabled={busy === "ocr"}
+                      className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-background px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-foreground hover:bg-accent cursor-pointer"
+                    >
+                      <RefreshCw className={cn("size-3", busy === "ocr" && "animate-spin")} />
+                      {busy === "ocr" ? "Running OCR…" : "Re-run OCR"}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {!hasClearance ? (
+                <div className="rounded-sm border border-dashed border-border p-8 text-center bg-muted/20">
+                  <AlertTriangle className="size-8 mx-auto text-caution mb-2" />
+                  <p className="text-sm font-bold text-foreground">RESTRICTED OCR FORENSIC CONTENT</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Your current clearance level ({profile.label}) does not permit reading {doc.classification} extracted document contents.
+                  </p>
+                </div>
+              ) : doc.ocr_status === "FAILED" ? (
+                <div className="rounded-sm border border-destructive/40 bg-destructive/10 p-4 text-xs space-y-2">
+                  <div className="flex items-center gap-2 font-bold text-destructive">
+                    <AlertTriangle className="size-4 shrink-0" />
+                    <span>OCR Processing Failure Diagnostic</span>
+                  </div>
+                  <p className="text-foreground">{doc.ocr_error || "The image stream or PDF could not be deciphered by the OCR engine."}</p>
+                  <p className="text-muted-foreground">
+                    Notice: The original document file and its cryptographic SHA-256 digest ({shortHash(current?.hash || "")}) remain 100% intact and available for download.
+                  </p>
+                  <div className="pt-2">
+                    <button
+                      onClick={handleTriggerOCR}
+                      disabled={busy === "ocr"}
+                      className="rounded-sm bg-primary px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider text-primary-foreground hover:opacity-90 cursor-pointer"
+                    >
+                      {busy === "ocr" ? "Retrying OCR…" : "Retry OCR Processing"}
+                    </button>
+                  </div>
+                </div>
+              ) : doc.ocr_status === "COMPLETED" && doc.ocr_text ? (
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="relative flex-1 min-w-[200px] max-w-xs">
+                      <Search className="absolute left-2.5 top-2 size-3.5 text-muted-foreground" />
+                      <input
+                        type="text"
+                        value={ocrSearch}
+                        onChange={(e) => setOcrSearch(e.target.value)}
+                        placeholder="Search within extracted text..."
+                        className="w-full rounded-sm border border-border bg-background pl-8 pr-3 py-1 text-xs outline-none focus:border-primary"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-[10px] text-muted-foreground">
+                        {doc.ocr_text.split(/\s+/).filter(Boolean).length} words · {doc.ocr_text.length} chars
+                      </span>
+                      <button
+                        onClick={handleCopyOCR}
+                        className="inline-flex items-center gap-1 rounded-sm border border-border bg-background px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-foreground hover:bg-accent cursor-pointer"
+                      >
+                        {copiedText ? <CheckCircle2 className="size-3 text-seal" /> : <Copy className="size-3" />}
+                        {copiedText ? "Copied" : "Copy Text"}
+                      </button>
+                      <button
+                        onClick={handleExportOCR}
+                        className="inline-flex items-center gap-1 rounded-sm border border-border bg-background px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-foreground hover:bg-accent cursor-pointer"
+                      >
+                        <Download className="size-3" />
+                        Export .txt
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="max-h-96 overflow-y-auto rounded-sm border border-border bg-background p-4 font-mono text-xs leading-relaxed text-foreground select-text whitespace-pre-wrap">
+                    {ocrSearch.trim() ? (
+                      doc.ocr_text.split(new RegExp(`(${ocrSearch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi")).map((part, i) =>
+                        part.toLowerCase() === ocrSearch.toLowerCase() ? (
+                          <mark key={i} className="bg-caution/30 text-foreground font-bold px-0.5 rounded-xs">
+                            {part}
+                          </mark>
+                        ) : (
+                          part
+                        ),
+                      )
+                    ) : (
+                      doc.ocr_text
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-sm border border-dashed border-border p-6 text-center text-xs text-muted-foreground space-y-2">
+                  <p>No OCR text was extracted for this record, or this file did not require optical character recognition.</p>
+                  <button
+                    onClick={handleTriggerOCR}
+                    disabled={busy === "ocr"}
+                    className="rounded-sm border border-border bg-background px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider text-foreground hover:bg-accent cursor-pointer"
+                  >
+                    {busy === "ocr" ? "Running OCR…" : "Execute OCR Scan Now"}
+                  </button>
+                </div>
+              )}
+            </Panel>
+          ) : activeTab === "history" ? (
             <Panel className="p-5">
               <Label className="mb-4 block">Version Log & Cryptographic Custody Record</Label>
               <ol className="relative border-l border-border pl-4 space-y-6">

@@ -104,6 +104,7 @@ export const fileDocument = createServerFn({ method: "POST" })
         fileBase64: z.string().optional(),
         mimeType: z.string().optional(),
         originalFileName: z.string().optional(),
+        ocrLanguage: z.string().optional(),
       })
       .parse(input),
   )
@@ -318,3 +319,48 @@ export const moveAssetStage = createServerFn({ method: "POST" })
     const { advanceAsset } = await import("./dms.server");
     return advanceAsset(data);
   });
+
+export const triggerOCR = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        actor: actorSchema,
+        documentId: z.string().min(1),
+        version: z.string().optional(),
+        language: z.string().optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { processDocumentOCRFn } = await import("./dms.server");
+    return processDocumentOCRFn(data);
+  });
+
+export const getExtractedText = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        actor: actorSchema,
+        documentId: z.string().min(1),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { getDocumentExtractedText } = await import("./dms.server");
+    return getDocumentExtractedText(data);
+  });
+
+export const getOCRStatus = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        actor: actorSchema,
+        documentId: z.string().min(1),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { getDocumentOCRStatus } = await import("./dms.server");
+    return getDocumentOCRStatus(data);
+  });
+

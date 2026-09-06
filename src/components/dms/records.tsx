@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { SUPPORTED_OCR_LANGUAGES } from "@/lib/ocr/ocr-types";
 import { toast } from "sonner";
 import {
   applySignature,
@@ -97,7 +99,9 @@ export function IntakeForm({
   const [revisionOf, setRevisionOf] = useState("");
   const [payload, setPayload] = useState<File | null>(null);
   const [clientHash, setClientHash] = useState<string>("");
+  const [ocrLang, setOcrLang] = useState<string>("eng");
   const [busy, setBusy] = useState(false);
+  const [uploadStep, setUploadStep] = useState<string>("");
   const canUpload = actor ? ROLE_PROFILE[actor.role].canUpload : false;
 
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -123,13 +127,16 @@ export function IntakeForm({
       return;
     }
     setBusy(true);
+    setUploadStep("Storing original file & calculating SHA-256 digest...");
     try {
       // 1. Calculate client-side hash for verification preview
       const digest = clientHash || (await hashFile(payload));
       // 2. Read base64 payload to send directly to server
       const fileBase64 = await fileToBase64(payload);
 
-      // 3. Register document on server (server calculates authoritative SHA-256 and persists file)
+      setUploadStep("Running Optical Character Recognition (OCR) engine...");
+
+      // 3. Register document on server (server calculates authoritative SHA-256, persists file, and runs OCR)
       const result = await file({
         data: {
           actor,
@@ -143,6 +150,7 @@ export function IntakeForm({
           fileBase64,
           mimeType: payload.type || "application/pdf",
           originalFileName: payload.name,
+          ocrLanguage: ocrLang,
           ...(revisionOf ? { documentId: revisionOf } : {}),
         },
       });
@@ -151,22 +159,36 @@ export function IntakeForm({
         await fetch(result.uploadUrl, { method: result.uploadMethod, body: payload }).catch(() => null);
       }
 
-      toast.success(
-        `✓ Upload Successful! ${result.document.refId} sealed at ${result.document.currentVersion} · SHA-256: ${result.sha256.slice(0, 12)}... (Integrity Verified)`,
-        { duration: 6000 },
-      );
+      if (result.ocrStatus === "COMPLETED") {
+        toast.success(
+          `✓ Sealed & OCR Complete! ${result.document.refId} (${result.ocrPageCount || 1} pg) · SHA-256: ${result.sha256.slice(0, 10)}... (Integrity Verified)`,
+          { duration: 7000 },
+        );
+      } else if (result.ocrStatus === "FAILED") {
+        toast.warning(
+          `✓ Document Sealed with SHA-256 (${result.sha256.slice(0, 10)}...) · Note: OCR text extraction unreadable`,
+          { duration: 7000 },
+        );
+      } else {
+        toast.success(
+          `✓ Upload Successful! ${result.document.refId} sealed · SHA-256: ${result.sha256.slice(0, 10)}... (Integrity Verified)`,
+          { duration: 6000 },
+        );
+      }
 
       setName("");
       setNote("");
       setPayload(null);
       setClientHash("");
       setRevisionOf("");
+      setUploadStep("");
       await refresh();
       onDone?.();
     } catch (error) {
       toast.error(message(error));
     } finally {
       setBusy(false);
+      setUploadStep("");
     }
   }
 
@@ -226,6 +248,14 @@ export function IntakeForm({
           </select>
         </label>
         <label className="text-xs">
+          <span className="text-muted-foreground">OCR Recognition Language</span>
+          <select className={cn(inputCls, "mt-1")} value={ocrLang} onChange={(e) => setOcrLang(e.target.value)}>
+            {SUPPORTED_OCR_LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code}>{l.label}</option>
+            ))}
+          </select>
+        </label>
+        <label className="text-xs sm:col-span-2">
           <span className="text-muted-foreground">File as revision of</span>
           <select className={cn(inputCls, "mt-1")} value={revisionOf} onChange={(e) => setRevisionOf(e.target.value)}>
             <option value="">— New record —</option>
@@ -238,11 +268,17 @@ export function IntakeForm({
           <span className="text-muted-foreground">Custody Remark</span>
           <input className={cn(inputCls, "mt-1")} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Reason for filing / chain-of-custody remark" />
         </label>
+        {uploadStep && (
+          <div className="sm:col-span-2 flex items-center gap-2 rounded-xs border border-primary/40 bg-primary/10 px-2.5 py-1.5 font-mono text-[11px] text-primary">
+            <span className="size-2 rounded-full bg-primary animate-pulse" />
+            <span>{uploadStep}</span>
+          </div>
+        )}
         <div className="sm:col-span-2 flex items-center justify-between pt-1">
           <button type="submit" className={primaryBtn} disabled={busy}>
-            {busy ? "Hashing & Sealing on Server…" : "Seal & File Record (SHA-256)"}
+            {busy ? "Sealing & Extracting OCR…" : "Seal & File Record (SHA-256)"}
           </button>
-          <span className="font-mono text-[10px] text-muted-foreground">Algorithm: Standard Cryptographic SHA-256</span>
+          <span className="font-mono text-[10px] text-muted-foreground">Protocol: SHA-256 + Tesseract OCR Engine</span>
         </div>
       </form>
     </Panel>
@@ -306,6 +342,21 @@ export function DocumentCard({ document: doc }: { document: CaseDocument }) {
         <StatusTag value={doc.status} />
         <ClassificationTag value={doc.classification} />
         <IntegrityBadge status={current?.integrity_status ?? (isTampered ? "TAMPER_ALERT" : "VERIFIED")} />
+        {doc.ocr_status === "COMPLETED" && (
+          <span className="rounded-xs border border-seal/40 bg-seal/10 px-1.5 py-0.5 font-mono text-[9px] font-bold text-seal uppercase">
+            ✓ OCR ({doc.ocr_page_count || 1}p)
+          </span>
+        )}
+        {doc.ocr_status === "FAILED" && (
+          <span className="rounded-xs border border-destructive/40 bg-destructive/10 px-1.5 py-0.5 font-mono text-[9px] font-bold text-destructive uppercase">
+            ⚠ OCR Failed
+          </span>
+        )}
+        {doc.ocr_status === "PROCESSING" && (
+          <span className="rounded-xs border border-primary/40 bg-primary/10 px-1.5 py-0.5 font-mono text-[9px] font-bold text-primary uppercase animate-pulse">
+            ⏳ OCR Running
+          </span>
+        )}
         <span className="ml-auto font-mono text-[11px] text-muted-foreground">{doc.currentVersion}</span>
       </div>
 

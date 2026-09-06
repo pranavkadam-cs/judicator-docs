@@ -60,7 +60,8 @@ function DocumentsPage() {
           doc.name.toLowerCase().includes(q) ||
           doc.refId.toLowerCase().includes(q) ||
           doc.category.toLowerCase().includes(q) ||
-          doc.tags.some((t) => t.toLowerCase().includes(q));
+          doc.tags.some((t) => t.toLowerCase().includes(q)) ||
+          (Boolean(doc.ocr_text) && doc.ocr_text!.toLowerCase().includes(q));
         if (!matchesQuery) return false;
       }
 
@@ -160,6 +161,21 @@ function DocumentsPage() {
                         <td className="p-4 space-y-1">
                           <div><StatusTag value={doc.status} /></div>
                           <div><IntegrityBadge status={currentVersion?.integrity_status ?? (doc.status === "TAMPER_ALERT" ? "TAMPER_ALERT" : "VERIFIED")} /></div>
+                          {doc.ocr_status === "COMPLETED" && (
+                            <div className="font-mono text-[9px] font-bold text-seal tracking-wider uppercase">
+                              ✓ OCR ({doc.ocr_page_count || 1}p)
+                            </div>
+                          )}
+                          {doc.ocr_status === "FAILED" && (
+                            <div className="font-mono text-[9px] font-bold text-destructive tracking-wider uppercase">
+                              ⚠ OCR Failed
+                            </div>
+                          )}
+                          {doc.ocr_status === "PROCESSING" && (
+                            <div className="font-mono text-[9px] font-bold text-primary tracking-wider uppercase animate-pulse">
+                              ⏳ OCR Running
+                            </div>
+                          )}
                         </td>
                         <td className="p-4 text-xs font-mono text-muted-foreground">
                           {formatDate(doc.updatedAt)}
