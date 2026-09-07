@@ -1,5 +1,5 @@
 {
-  "version": 305,
+  "version": 314,
   "users": [
     {
       "id": "usr-admin-001",
@@ -10,7 +10,7 @@
       "passwordHash": "40acd16741f4481a1e41691028335da8:b3be9e8f543dc01146438f1a3151daa40c26463c667fba1235a346306662d3ad",
       "isActive": true,
       "createdAt": "2024-01-15T08:00:00.000Z",
-      "lastLoginAt": "2026-09-06T09:42:05.539Z"
+      "lastLoginAt": "2026-09-07T06:50:47.997Z"
     },
     {
       "id": "usr-invest-002",
@@ -1985,7 +1985,7 @@
       "name": "lgl",
       "category": "Legal Notice",
       "classification": "PUBLIC",
-      "status": "DRAFT",
+      "status": "TAMPER_ALERT",
       "currentVersion": "v1.0.0",
       "versions": [
         {
@@ -2006,8 +2006,8 @@
           "signature": null,
           "signedBy": null,
           "note": "Filed through the secure intake.",
-          "integrity_status": "VERIFIED",
-          "last_verified_at": "2026-09-06T09:47:56.355Z",
+          "integrity_status": "TAMPER_ALERT",
+          "last_verified_at": "2026-09-07T06:51:01.825Z",
           "verification_count": 1,
           "ocr_status": "COMPLETED",
           "ocr_text": "--- Page 1 ---\nAsymmetric versus symmetric encryption\nSo far, you’ve learned that encryption protects your data at rest, in use, and in transit. These\nstates of data use encryption to convert data from a readable format to an encoded format. In\nthis reading, you’ll learn more about encryption and explore two types of cryptography:\nsymmetric and asymmetric. You’ll also learn how to use these processes to protect your data.\nCryptography\nCryptography is the process of transforming information into a form that unintended readers\ncan’t understand. Cryptography includes encryption and decryption techniques to keep your\ndata secure. Encryption uses algorithms to encode messages, and decryption uses algorithms\nto decode messages. Symmetric and asymmetric encryption are two types of encryption used\nin cryptography.\nEncryption at rest\nEncryption at rest sometimes uses symmetric encryption to help protect data stored on a disk.\nThis also includes data stored on a hard drive. But, encryption at rest can also use asymmetric\nencryption. Encryption at rest ensures that if an attacker accesses your data, they still need\naccess to the encryption keys to use it. So, even though the attacker has the data, it’s useless\nto them since it’s still encrypted.\nEncryption at rest also cuts out the lower layers of the hardware and software stack. Ideally, it\nworks as a chokepoint, since centrally managed keys create a single place where access to\ndata can be audited and enforced. This lets businesses focus their protection strategies on the\nencryption keys, which reduces the attack surface.\nEncryption in transit\nEncryption in transit sometimes uses symmetric encryption. But, it can also use asymmetric\nencryption. Encryption in transit is used to protect data if communications are intercepted. It\nachieves this by authenticating the endpoints, and encrypting the data before it’s transmitted.\nEndpoint authentication verifies the identity of a user or a service connecting remotely to a\nnetwork. So, once the data arrives at the endpoint, it decrypts the data and ensures the data\nwasn’t modified.\nLike with encryption at rest, encryption in transit removes the need to trust the lower layers of\nthe network, reduces the potential attack surface, and prevents attackers from accessing data\nif they intercept communications. Secure Socket Layer/Transport Layer Security (SSL/TLS) is\n1\n\n--- Page 2 ---\nthe most common protocol used for encryption in transit.\nSymmetric encryption\nSymmetric encryption is the use of a single key to exchange information. Symmetric\nencryption is also known as the shared or private key algorithm because it needs one key to\nencrypt and decrypt information. Two benefits of symmetric encryption are its ability to handle\nhigh rates of data and use less computational power. For example, banks and banking apps\nhandle millions of transactions a day, so they use symmetric encryption to handle large\namounts of data.\nDespite these benefits, ensuring a secure exchange of the shared key can be a challenge.\nAnyone who gains access to a key, including a malicious actor, can decrypt anything sent\nbetween the parties. This includes any messages or data. So, the shared key transfer needs to\nbe adequately secured. This can be accomplished by encrypting it with a different type of\ncryptographic key.\nCommon symmetric models\nSymmetric encryption has evolved over time. Advanced Encryption Standard (AES) is the most\nwidely used form of symmetric encryption. AES allows for fast encryption and decryption, and\ncan be implemented easily.\n2\n\n--- Page 3 ---\nAsymmetric encryption\nAsymmetric encryption uses both a public and private key for encrypting and decrypting data.\nThe public key encrypts the data being sent, and the private key decrypts the data. Anyone\nwith the public key can send encrypted messages. But only those who have the private key can\ndecrypt the sent messages. With a public and private key pair, you can use your own private\nkey to digitally sign data. Using the public key, the authenticity and integrity of this data can be\nverified.\nFor example, a public key is like a bank account number that can be shared with anyone.\nSharing the number won’t give anyone access to the account holder’s financial information. In\ncontrast, a private key is like an ATM PIN number. A PIN number should never be shared with\nanyone. If shared, the person with the PIN will have access to financial information that gives\nthem direct access to your bank account. This is something to avoid.\nCommon asymmetric model\nOne common method of asymmetric encryption is Rivest-Shamir-Adelman (RSA). This is one of\nthe original forms of asymmetric encryption where two prime numbers are factored and an\nauxiliary value is added to create a public key. Anyone can use the public key to encrypt data,\nbut only someone with the prime number code can decrypt the data. The keys can be very\nlarge, with 2,048 and 4,096 bits as two examples of typical sizes.\nNote: Because the keys used for asymmetric encryption can be very large, it requires more\ncomputing power. So, this type of encryption is not suited for large packets of data.\nSymmetric and asymmetric encryption in action\nBoth symmetric and asymmetric encryption are used for data encryption. Different situations\ncall for different types of encryption.\nSymmetric encryption is used by businesses like financial institutions because it can encrypt\nlarge amounts of information in bulk. For example, a bank decides to provide an app for\ncustomers to pay for services and products using their mobile devices. The bank deals with\nmillions of transactions, so they need bulk encryption. The app uses symmetric encryption to\nverify users are who they claim to be, and to protect the users’ Personal Identifying Information\n(PII).\nThe bank then decides to create its own messaging app for its users. The app uses end-to-end\nencryption to protect their users, and to authenticate them. The two types of encryption work\ntogether for this task. If a user wants to communicate with the bank, a symmetric key is created\nin the user’s app. This symmetric key is encrypted with the bank’s public key. So, the symmetric\nkey can be securely transferred to the bank. The bank decrypts the symmetric key with its\n3\n\n--- Page 4 ---\nprivate key. Now, both parties have access to the same symmetric key, so they can exchange\nlarger volumes of data to leverage the more efficient symmetric encryption model.\nKey takeaways\nCryptography is an essential part of protecting data from being read by unauthorized\nindividuals. Symmetric encryption uses one key to exchange information, while asymmetric\nencryption uses a public and private key to encrypt and decrypt data. While the encryption\ntypes differ in how information is exchanged, they both ensure only authorized users can read\nthe data. As a cloud security professional, you’ll likely use asymmetric and symmetric\nencryption to secure data in a variety of situations. With an understanding of what they do,\nyou’ll be better prepared to use them.\n4",
@@ -4360,7 +4360,7 @@
       "name": "REPORT",
       "category": "Police Report",
       "classification": "CONFIDENTIAL",
-      "status": "SEALED",
+      "status": "TAMPER_ALERT",
       "currentVersion": "v1.0.1",
       "versions": [
         {
@@ -4396,7 +4396,7 @@
           "signature": "SIG-58435CD141EF-REC-0001",
           "signedBy": "S. Rao",
           "note": "tgh",
-          "integrity_status": "VERIFIED",
+          "integrity_status": "TAMPER_ALERT",
           "last_verified_at": "2026-09-02T19:06:27.743Z",
           "verification_count": 5
         }
@@ -5054,6 +5054,28 @@
     }
   ],
   "notifications": [
+    {
+      "id": "notif-mtqvtupbbers1",
+      "userId": "usr-admin-001",
+      "type": "TAMPER_DETECTED",
+      "title": "Tamper alert",
+      "message": "Integrity check failed for REPORT (v1.0.1).",
+      "isRead": false,
+      "createdAt": "2026-09-07T06:51:19.343Z",
+      "linkedEntityId": "doc-mtda7e7nlsj46",
+      "linkedEntityType": "document"
+    },
+    {
+      "id": "notif-mtqvto4g2tefo",
+      "userId": "usr-admin-001",
+      "type": "TAMPER_DETECTED",
+      "title": "CRITICAL: File Integrity Violation",
+      "message": "Integrity check failed for lgl (v1.0.0). Stored file has been modified or corrupted.",
+      "isRead": false,
+      "createdAt": "2026-09-07T06:51:10.816Z",
+      "linkedEntityId": "doc-mtpmp50ioh2lz",
+      "linkedEntityType": "document"
+    },
     {
       "id": "notif-mtpoce7a26lw3",
       "userId": "usr-admin-001",
@@ -5859,6 +5881,138 @@
     }
   ],
   "audit": [
+    {
+      "id": "aud-mtqvtupb527j4",
+      "at": "2026-09-07T06:51:19.343Z",
+      "actor": "S. Rao",
+      "actorId": "usr-admin-001",
+      "role": "ADMIN",
+      "action": "INTEGRITY_FAILED",
+      "target": "REPORT",
+      "targetId": "doc-mtda7e7nlsj46",
+      "detail": "Server detected SHA-256 digest mismatch on v1.0.1 — record flagged for tamper review.",
+      "hash": "e23f1e2f4f7a7d300a50ca50b56365968be0cb6fd7bf3af699a853de9388ac9e",
+      "expectedHash": "dad0ccddec0d9edfcee708cce1e640cafe46eb3687fbb719bb14b894791025d5",
+      "computedHash": "e23f1e2f4f7a7d300a50ca50b56365968be0cb6fd7bf3af699a853de9388ac9e",
+      "actionTaken": "TAMPER_FLAGGED",
+      "ipAddress": null
+    },
+    {
+      "id": "aud-mtqvto5jzo29d",
+      "at": "2026-09-07T06:51:10.855Z",
+      "actor": "S. Rao",
+      "actorId": "usr-admin-001",
+      "role": "ADMIN",
+      "action": "BLOCKCHAIN_ANCHORED",
+      "target": "lgl",
+      "targetId": "doc-mtpmp50ioh2lz",
+      "detail": "TAMPER ALERT anchored to simulation ledger at block #0 (tx: 80e1e7188605...).",
+      "hash": "873ca2d72908e4d9fcec4789d170326331897e1d4e0172e04e2b88515b7323a4",
+      "blockchain_tx_id": "80e1e7188605b738ad1ed8bdb43af8ad58055aac9c9218e4bd1dbef8382efff5",
+      "blockchain_block": 0,
+      "blockchain_simulated": true,
+      "ipAddress": null
+    },
+    {
+      "id": "aud-mtqvto4fsit2d",
+      "at": "2026-09-07T06:51:10.815Z",
+      "actor": "S. Rao",
+      "actorId": "usr-admin-001",
+      "role": "ADMIN",
+      "action": "INTEGRITY_FAILED",
+      "target": "lgl",
+      "targetId": "doc-mtpmp50ioh2lz",
+      "detail": "SECURITY ALERT: SHA-256 verification failed on v1.0.0. Expected [58435cd1...], got [873ca2d7...]. File download BLOCKED.",
+      "hash": "873ca2d72908e4d9fcec4789d170326331897e1d4e0172e04e2b88515b7323a4",
+      "expectedHash": "58435cd141ef7a9cf67a462087eeb64962e032e9075908527cc824f175345d14",
+      "computedHash": "873ca2d72908e4d9fcec4789d170326331897e1d4e0172e04e2b88515b7323a4",
+      "actionTaken": "DOWNLOAD_BLOCKED",
+      "ipAddress": null
+    },
+    {
+      "id": "aud-mtqvtljngpb6a",
+      "at": "2026-09-07T06:51:07.475Z",
+      "actor": "S. Rao",
+      "actorId": "usr-admin-001",
+      "role": "ADMIN",
+      "action": "ASSET_LIFECYCLE",
+      "target": "lgl",
+      "targetId": "doc-mtpmp50ioh2lz",
+      "detail": "DEMO TEST: Intentionally modified 1 byte of lgl (v1.0.0) on disk to demonstrate tamper detection.",
+      "hash": "873ca2d72908e4d9fcec4789d170326331897e1d4e0172e04e2b88515b7323a4",
+      "expectedHash": "58435cd141ef7a9cf67a462087eeb64962e032e9075908527cc824f175345d14",
+      "computedHash": "873ca2d72908e4d9fcec4789d170326331897e1d4e0172e04e2b88515b7323a4",
+      "actionTaken": "BYTE_INVERTED_FOR_DEMO",
+      "ipAddress": null
+    },
+    {
+      "id": "aud-mtqvth6p5b2ud",
+      "at": "2026-09-07T06:51:01.825Z",
+      "actor": "S. Rao",
+      "actorId": "usr-admin-001",
+      "role": "ADMIN",
+      "action": "INTEGRITY_VERIFIED",
+      "target": "lgl",
+      "targetId": "doc-mtpmp50ioh2lz",
+      "detail": "Server verified SHA-256 digest matches for v1.0.0.",
+      "hash": "58435cd141ef7a9cf67a462087eeb64962e032e9075908527cc824f175345d14",
+      "expectedHash": "58435cd141ef7a9cf67a462087eeb64962e032e9075908527cc824f175345d14",
+      "computedHash": "58435cd141ef7a9cf67a462087eeb64962e032e9075908527cc824f175345d14",
+      "actionTaken": "VERIFICATION_PASSED",
+      "ipAddress": null
+    },
+    {
+      "id": "aud-mtqvt6iloig6",
+      "at": "2026-09-07T06:50:47.997Z",
+      "actor": "S. Rao",
+      "actorId": "usr-admin-001",
+      "role": "ADMIN",
+      "action": "USER_LOGIN",
+      "target": "admin@vigil.os",
+      "targetId": "usr-admin-001",
+      "detail": "Authenticated successfully.",
+      "hash": null,
+      "ipAddress": null
+    },
+    {
+      "id": "aud-mtqudsj21fxh",
+      "at": "2026-09-07T06:10:50.414Z",
+      "actor": "S. Rao",
+      "actorId": "usr-admin-001",
+      "role": "ADMIN",
+      "action": "USER_LOGIN",
+      "target": "admin@vigil.os",
+      "targetId": "usr-admin-001",
+      "detail": "Authenticated successfully.",
+      "hash": null,
+      "ipAddress": null
+    },
+    {
+      "id": "aud-mtqu740oarid",
+      "at": "2026-09-07T06:05:38.712Z",
+      "actor": "S. Rao",
+      "actorId": "usr-admin-001",
+      "role": "ADMIN",
+      "action": "USER_LOGIN",
+      "target": "admin@vigil.os",
+      "targetId": "usr-admin-001",
+      "detail": "Authenticated successfully.",
+      "hash": null,
+      "ipAddress": null
+    },
+    {
+      "id": "aud-mtqtv4wshgji",
+      "at": "2026-09-07T05:56:19.996Z",
+      "actor": "S. Rao",
+      "actorId": "usr-admin-001",
+      "role": "ADMIN",
+      "action": "USER_LOGIN",
+      "target": "admin@vigil.os",
+      "targetId": "usr-admin-001",
+      "detail": "Authenticated successfully.",
+      "hash": null,
+      "ipAddress": null
+    },
     {
       "id": "aud-mtpoch2iib05t",
       "at": "2026-09-06T10:34:05.034Z",
