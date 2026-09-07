@@ -38,11 +38,10 @@ import {
   RefreshCw,
   Key,
   AlertTriangle,
-  CheckCircle2,
-  FileText,
   Search,
   Sparkles,
   ExternalLink,
+  Cpu,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -84,7 +83,7 @@ function DocumentDetailsPage() {
   const [busy, setBusy] = useState("");
   const [copied, setCopied] = useState(false);
   const [copiedText, setCopiedText] = useState(false);
-  const [activeTab, setActiveTab] = useState<"ocr" | "history" | "sharing">("ocr");
+  const [activeTab, setActiveTab] = useState<"ocr" | "history" | "sharing" | "blockchain">("ocr");
   const [ocrSearch, setOcrSearch] = useState("");
   const [ocrLangSelection, setOcrLangSelection] = useState("eng");
 
@@ -552,6 +551,17 @@ function DocumentDetailsPage() {
             >
               Access Sharing
             </button>
+            <button
+              onClick={() => setActiveTab("blockchain")}
+              className={`px-4 py-2 font-mono text-xs font-bold uppercase tracking-wider border-b-2 cursor-pointer flex items-center gap-1.5 ${
+                activeTab === "blockchain"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Cpu className="size-3.5" />
+              Blockchain
+            </button>
           </div>
 
           {activeTab === "ocr" ? (
@@ -723,8 +733,38 @@ function DocumentDetailsPage() {
                 ))}
               </ol>
             </Panel>
-          ) : (
+          ) : activeTab === "sharing" ? (
             <SharePanel documentId={doc.id} />
+          ) : (
+            <Panel className="p-5 space-y-4">
+              <div className="flex items-center justify-between border-b border-border pb-3">
+                <Label>Blockchain Ledger & Anchors</Label>
+                <Link
+                  to="/blockchain"
+                  className="inline-flex items-center gap-1 text-[10px] font-mono font-bold uppercase tracking-wider text-primary hover:underline"
+                >
+                  View Full Ledger <ExternalLink className="size-3" />
+                </Link>
+              </div>
+              
+              <div className="rounded-sm border border-border bg-muted/20 p-4">
+                <div className="flex flex-col items-center justify-center gap-3 py-6 text-center">
+                  <Cpu className="size-8 text-muted-foreground/40" />
+                  <div className="text-sm font-semibold text-foreground">
+                    Blockchain Anchors
+                  </div>
+                  <p className="text-xs text-muted-foreground max-w-sm">
+                    This document's cryptographic hashes and integrity events are anchored to the blockchain. View the full ledger to verify the chain of custody.
+                  </p>
+                  <Link
+                    to="/blockchain"
+                    className="mt-2 rounded-sm bg-primary px-4 py-2 font-mono text-[10px] font-bold uppercase tracking-wider text-primary-foreground hover:opacity-90"
+                  >
+                    Verify on Ledger Explorer
+                  </Link>
+                </div>
+              </div>
+            </Panel>
           )}
         </div>
       </div>

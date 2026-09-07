@@ -190,6 +190,9 @@ export type DocVersion = {
   ocr_status?: import("./ocr/ocr-types").OCRStatus | undefined;
   ocr_text?: string | undefined;
   ocr_processed_at?: string | undefined;
+  // Blockchain ledger anchoring
+  blockchain_tx_id?: string | null;
+  blockchain_block?: number | null;
 };
 
 // ── Case document ────────────────────────────────────────────
@@ -369,7 +372,9 @@ export type AuditAction =
   | "ASSET_LIFECYCLE"
   | "OCR_PROCESSING_STARTED"
   | "OCR_COMPLETED"
-  | "OCR_FAILED";
+  | "OCR_FAILED"
+  | "BLOCKCHAIN_ANCHORED"
+  | "BLOCKCHAIN_FAILED";
 
 export type AuditEvent = {
   id: string;
@@ -386,6 +391,10 @@ export type AuditEvent = {
   computedHash?: string | null;
   actionTaken?: string | null;
   ipAddress: string | null;
+  // Blockchain ledger anchoring fields
+  blockchain_tx_id?: string | null;
+  blockchain_block?: number | null;
+  blockchain_simulated?: boolean | null;
 };
 
 // ── Registry (top-level data store) ──────────────────────────

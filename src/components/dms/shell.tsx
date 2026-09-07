@@ -32,6 +32,7 @@ export function AppShell({
     { to: "/documents", label: "Documents", hint: "Registry Search" },
     { to: "/assets", label: "Assets", hint: "Lifecycle" },
     { to: "/audit", label: "Audit trail", hint: "Chain of custody" },
+    { to: "/blockchain", label: "Blockchain", hint: "Ledger explorer" },
   ];
 
   // Add Admin-only Navigation item

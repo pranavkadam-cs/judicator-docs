@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AssetsRouteImport } from './routes/assets'
 import { Route as AuditRouteImport } from './routes/audit'
+import { Route as BlockchainRouteImport } from './routes/blockchain'
 import { Route as DocumentsRouteImport } from './routes/documents'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as NotificationsRouteImport } from './routes/notifications'
@@ -34,6 +35,11 @@ const AssetsRoute = AssetsRouteImport.update({
 const AuditRoute = AuditRouteImport.update({
   id: '/audit',
   path: '/audit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BlockchainRoute = BlockchainRouteImport.update({
+  id: '/blockchain',
+  path: '/blockchain',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DocumentsRoute = DocumentsRouteImport.update({
@@ -81,6 +87,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/assets': typeof AssetsRoute
   '/audit': typeof AuditRoute
+  '/blockchain': typeof BlockchainRoute
   '/documents': typeof DocumentsRouteWithChildren
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
@@ -94,6 +101,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/assets': typeof AssetsRoute
   '/audit': typeof AuditRoute
+  '/blockchain': typeof BlockchainRoute
   '/documents': typeof DocumentsRouteWithChildren
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
@@ -108,6 +116,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/assets': typeof AssetsRoute
   '/audit': typeof AuditRoute
+  '/blockchain': typeof BlockchainRoute
   '/documents': typeof DocumentsRouteWithChildren
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
@@ -123,6 +132,7 @@ export interface FileRouteTypes {
     | '/'
     | '/assets'
     | '/audit'
+    | '/blockchain'
     | '/documents'
     | '/login'
     | '/notifications'
@@ -136,6 +146,7 @@ export interface FileRouteTypes {
     | '/'
     | '/assets'
     | '/audit'
+    | '/blockchain'
     | '/documents'
     | '/login'
     | '/notifications'
@@ -149,6 +160,7 @@ export interface FileRouteTypes {
     | '/'
     | '/assets'
     | '/audit'
+    | '/blockchain'
     | '/documents'
     | '/login'
     | '/notifications'
@@ -163,6 +175,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AssetsRoute: typeof AssetsRoute
   AuditRoute: typeof AuditRoute
+  BlockchainRoute: typeof BlockchainRoute
   DocumentsRoute: typeof DocumentsRouteWithChildren
   LoginRoute: typeof LoginRoute
   NotificationsRoute: typeof NotificationsRoute
@@ -193,6 +206,13 @@ declare module '@tanstack/react-router' {
       path: '/audit'
       fullPath: '/audit'
       preLoaderRoute: typeof AuditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/blockchain': {
+      id: '/blockchain'
+      path: '/blockchain'
+      fullPath: '/blockchain'
+      preLoaderRoute: typeof BlockchainRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/documents': {
@@ -270,6 +290,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AssetsRoute: AssetsRoute,
   AuditRoute: AuditRoute,
+  BlockchainRoute: BlockchainRoute,
   DocumentsRoute: DocumentsRouteWithChildren,
   LoginRoute: LoginRoute,
   NotificationsRoute: NotificationsRoute,

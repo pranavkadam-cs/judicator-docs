@@ -364,3 +364,29 @@ export const getOCRStatus = createServerFn({ method: "POST" })
     return getDocumentOCRStatus(data);
   });
 
+// ── Blockchain Ledger Functions ──────────────────────────────
+
+export const getBlockchainLedgerFn = createServerFn({ method: "GET" })
+  .inputValidator((input) =>
+    z.object({ documentId: z.string().optional() }).parse(input ?? {}),
+  )
+  .handler(async ({ data }) => {
+    const { getBlockchainLedger, getTransactionsForDocument, verifyFullChain } =
+      await import("./blockchain.server");
+    const ledger = data.documentId
+      ? { ...(await getBlockchainLedger()), transactions: await getTransactionsForDocument(data.documentId) }
+      : await getBlockchainLedger();
+    const chainStatus = await verifyFullChain();
+    return { ledger, chainStatus };
+  });
+
+export const verifyBlockchainEntryFn = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z.object({ txId: z.string().min(1) }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { verifyLedgerEntry } = await import("./blockchain.server");
+    const result = await verifyLedgerEntry(data.txId);
+    if (!result) throw new Error("Transaction not found in the ledger.");
+    return result;
+  });

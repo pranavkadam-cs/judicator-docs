@@ -45,6 +45,13 @@ import {
   isGoogleCloudStorageConfigured,
   uploadToGoogleCloud,
 } from "./google-cloud-storage.server";
+import {
+  anchorDocumentHash,
+  anchorSignatureEvent,
+  anchorTamperEvent,
+  anchorIntegrityVerification,
+} from "./blockchain.server";
+
 
 function id(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
@@ -518,7 +525,7 @@ export async function registerDocument(input: {
     throw error;
   }
 
-  return {
+  const result = {
     document: doc,
     uploadUrl: signed?.url ?? null,
     uploadMethod: signed?.method ?? "PUT",
@@ -534,6 +541,54 @@ export async function registerDocument(input: {
     ocrPageCount: ocrResult.pageCount,
     ocrTextPreview: ocrResult.text ? ocrResult.text.slice(0, 150) : "",
   };
+
+  // ── Blockchain: Anchor document hash (fire-and-forget, non-blocking) ──
+  anchorDocumentHash({
+    documentId: doc.id,
+    documentName: doc.name,
+    sha256Hash: authoritativeHash,
+    ocrStatus: ocrResult.status,
+    actorId: input.actor.id,
+    actorName: input.actor.name,
+    actorRole: input.actor.role,
+    caseId: input.caseId,
+  }).then(async (bcResult) => {
+    if (bcResult.success) {
+      const reg2 = await loadRegistry();
+      const d = reg2.documents.find((x) => x.id === doc.id);
+      const v = d?.versions.find((x) => x.version === doc.currentVersion);
+      if (v) {
+        v.blockchain_tx_id = bcResult.txId;
+        v.blockchain_block = bcResult.blockIndex;
+      }
+      reg2.audit = [
+        {
+          id: id("aud"),
+          at: new Date().toISOString(),
+          actor: input.actor.name,
+          actorId: input.actor.id,
+          role: input.actor.role,
+          action: "BLOCKCHAIN_ANCHORED",
+          target: doc.name,
+          targetId: doc.id,
+          detail: `SHA-256 hash anchored to ${bcResult.simulated ? "simulation ledger" : "Hyperledger Fabric"} at block #${bcResult.blockIndex} (tx: ${bcResult.txId.slice(0, 12)}...).`,
+          hash: authoritativeHash,
+          blockchain_tx_id: bcResult.txId,
+          blockchain_block: bcResult.blockIndex,
+          blockchain_simulated: bcResult.simulated,
+          ipAddress: null,
+        },
+        ...reg2.audit,
+      ].slice(0, 1000);
+      await saveRegistry(reg2);
+    } else {
+      console.warn(`[Vigil.OS Blockchain] Anchor failed for ${doc.id}: ${bcResult.error}`);
+    }
+  }).catch((err: any) => {
+    console.warn(`[Vigil.OS Blockchain] Anchor error: ${err.message}`);
+  });
+
+  return result;
 }
 
 // ── Document Workflow ────────────────────────────────────────
@@ -699,6 +754,41 @@ export async function downloadDocumentWithIntegrity(input: {
 
     await saveRegistry(reg);
 
+    // ── Blockchain: Anchor tamper detection event (fire-and-forget) ──
+    anchorTamperEvent({
+      documentId: doc.id,
+      documentName: doc.name,
+      sha256Hash: computedHash,
+      actorId: input.actor.id,
+      actorName: input.actor.name,
+      actorRole: input.actor.role,
+      caseId: doc.caseId,
+    }).then(async (bcResult) => {
+      if (bcResult.success) {
+        const reg2 = await loadRegistry();
+        reg2.audit = [
+          {
+            id: id("aud"),
+            at: new Date().toISOString(),
+            actor: input.actor.name,
+            actorId: input.actor.id,
+            role: input.actor.role,
+            action: "BLOCKCHAIN_ANCHORED",
+            target: doc.name,
+            targetId: doc.id,
+            detail: `TAMPER ALERT anchored to ${bcResult.simulated ? "simulation ledger" : "Hyperledger Fabric"} at block #${bcResult.blockIndex} (tx: ${bcResult.txId.slice(0, 12)}...).`,
+            hash: computedHash,
+            blockchain_tx_id: bcResult.txId,
+            blockchain_block: bcResult.blockIndex,
+            blockchain_simulated: bcResult.simulated,
+            ipAddress: null,
+          },
+          ...reg2.audit,
+        ].slice(0, 1000);
+        await saveRegistry(reg2);
+      }
+    }).catch(() => {});
+
     throw new Error(
       "File integrity verification failed. The file may have been modified or corrupted. Download has been blocked.",
     );
@@ -737,6 +827,41 @@ export async function downloadDocumentWithIntegrity(input: {
   );
 
   await saveRegistry(reg);
+
+  // ── Blockchain: Anchor integrity verification (fire-and-forget) ──
+  anchorIntegrityVerification({
+    documentId: doc.id,
+    documentName: doc.name,
+    sha256Hash: computedHash,
+    actorId: input.actor.id,
+    actorName: input.actor.name,
+    actorRole: input.actor.role,
+    caseId: doc.caseId,
+  }).then(async (bcResult) => {
+    if (bcResult.success) {
+      const reg2 = await loadRegistry();
+      reg2.audit = [
+        {
+          id: id("aud"),
+          at: new Date().toISOString(),
+          actor: input.actor.name,
+          actorId: input.actor.id,
+          role: input.actor.role,
+          action: "BLOCKCHAIN_ANCHORED",
+          target: doc.name,
+          targetId: doc.id,
+          detail: `Integrity verification anchored to ${bcResult.simulated ? "simulation ledger" : "Hyperledger Fabric"} at block #${bcResult.blockIndex} (tx: ${bcResult.txId.slice(0, 12)}...).`,
+          hash: computedHash,
+          blockchain_tx_id: bcResult.txId,
+          blockchain_block: bcResult.blockIndex,
+          blockchain_simulated: bcResult.simulated,
+          ipAddress: null,
+        },
+        ...reg2.audit,
+      ].slice(0, 1000);
+      await saveRegistry(reg2);
+    }
+  }).catch(() => {});
 
   return {
     verified: true,
@@ -996,6 +1121,42 @@ export async function signDocument(input: {
     v.hash,
   );
   await saveRegistry(reg);
+
+  // ── Blockchain: Anchor signature event (fire-and-forget) ──
+  anchorSignatureEvent({
+    documentId: doc.id,
+    documentName: doc.name,
+    sha256Hash: v.hash,
+    actorId: input.actor.id,
+    actorName: input.actor.name,
+    actorRole: input.actor.role,
+    caseId: doc.caseId,
+  }).then(async (bcResult) => {
+    if (bcResult.success) {
+      const reg2 = await loadRegistry();
+      reg2.audit = [
+        {
+          id: id("aud"),
+          at: new Date().toISOString(),
+          actor: input.actor.name,
+          actorId: input.actor.id,
+          role: input.actor.role,
+          action: "BLOCKCHAIN_ANCHORED",
+          target: doc.name,
+          targetId: doc.id,
+          detail: `Digital signature anchored to ${bcResult.simulated ? "simulation ledger" : "Hyperledger Fabric"} at block #${bcResult.blockIndex} (tx: ${bcResult.txId.slice(0, 12)}...).`,
+          hash: v.hash,
+          blockchain_tx_id: bcResult.txId,
+          blockchain_block: bcResult.blockIndex,
+          blockchain_simulated: bcResult.simulated,
+          ipAddress: null,
+        },
+        ...reg2.audit,
+      ].slice(0, 1000);
+      await saveRegistry(reg2);
+    }
+  }).catch(() => {});
+
   return doc;
 }
 
