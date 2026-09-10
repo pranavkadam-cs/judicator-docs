@@ -35,13 +35,13 @@ export type BlockchainTransaction = {
   documentId: string;
   documentName: string;
   sha256Hash: string;     // authoritative SHA-256 digest of the document file
-  ocrStatus?: string;
+  ocrStatus?: string | undefined;
   actorId: string;
   actorName: string;
   actorRole: string;
   caseId: string;
   metadataHash: string;   // sha256 of the event payload — tamper-evident metadata seal
-  fabricTxId?: string;    // set only on live Fabric transactions
+  fabricTxId?: string | undefined;    // set only on live Fabric transactions
   simulated: boolean;     // true = local simulation, false = live Hyperledger Fabric
 };
 
@@ -69,8 +69,8 @@ export type AnchorResult = {
   txId: string;
   blockIndex: number;
   simulated: boolean;
-  fabricTxId?: string;
-  error?: string;
+  fabricTxId?: string | undefined;
+  error?: string | undefined;
 };
 
 export type VerifyResult = {
@@ -172,12 +172,14 @@ async function submitToFabric(
 
   try {
     // Dynamic import so the module doesn't crash when fabric-gateway is not installed
-    const { connect, hash } = await import("@hyperledger/fabric-gateway").catch(() => {
+    // @ts-expect-error Optional live dependency
+    const { connect, hash } = await import(/* @vite-ignore */ "@hyperledger/fabric-gateway").catch(() => {
       throw new Error("@hyperledger/fabric-gateway not installed. Run: npm install @hyperledger/fabric-gateway");
     });
 
     const { readFileSync } = await import("node:fs");
-    const grpc = await import("@grpc/grpc-js");
+    // @ts-expect-error Optional live dependency
+    const grpc = await import(/* @vite-ignore */ "@grpc/grpc-js");
 
     const peerEndpoint = process.env["FABRIC_PEER_ENDPOINT"]!;
     const mspId = process.env["FABRIC_MSP_ID"]!;

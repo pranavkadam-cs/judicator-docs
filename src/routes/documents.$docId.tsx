@@ -42,6 +42,8 @@ import {
   Sparkles,
   ExternalLink,
   Cpu,
+  CheckCircle2,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 

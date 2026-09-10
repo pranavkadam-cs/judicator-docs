@@ -317,11 +317,30 @@ describe("SIH Problem Statement 26190: SHA-256 File Integrity Verification Engin
   });
 
   test("TEST 11: Google Cloud Storage configuration and upload subsystem", async () => {
+    process.env["GOOGLE_CLOUD_STORAGE_API_KEY"] = "mock-cloud-storage-key";
     const { isGoogleCloudStorageConfigured, uploadToGoogleCloud } = await import(
       "../src/lib/google-cloud-storage.server"
     );
     assert.equal(typeof isGoogleCloudStorageConfigured, "function");
     assert.equal(typeof uploadToGoogleCloud, "function");
     assert.equal(isGoogleCloudStorageConfigured(), true, "Google Cloud Storage should be detected as configured with API key");
+  });
+
+  test("TEST 12: Supabase database and storage subsystem exports", async () => {
+    const { isSupabaseConfigured, checkSupabaseConnection } = await import(
+      "../src/lib/supabase"
+    );
+    const { isSupabaseStorageConfigured, uploadToSupabaseStorage } = await import(
+      "../src/lib/supabase-storage.server"
+    );
+    const { isSupabaseDbConfigured, loadRegistryFromSupabase } = await import(
+      "../src/lib/supabase-db.server"
+    );
+    assert.equal(typeof isSupabaseConfigured, "function");
+    assert.equal(typeof checkSupabaseConnection, "function");
+    assert.equal(typeof isSupabaseStorageConfigured, "function");
+    assert.equal(typeof uploadToSupabaseStorage, "function");
+    assert.equal(typeof isSupabaseDbConfigured, "function");
+    assert.equal(typeof loadRegistryFromSupabase, "function");
   });
 });

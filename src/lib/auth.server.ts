@@ -119,7 +119,24 @@ export async function loginUser(
   if (!user) return { error: "Invalid email or password." };
   if (!user.isActive) return { error: "Account has been deactivated." };
 
-  const valid = await verifyPassword(password, user.passwordHash);
+  let valid = await verifyPassword(password, user.passwordHash);
+
+  // If local check failed and Supabase is configured, check Supabase Auth
+  if (!valid) {
+    try {
+      const { isSupabaseConfigured } = await import("./supabase");
+      if (isSupabaseConfigured()) {
+        const { authenticateWithSupabase } = await import("./supabase-auth.server");
+        const sbAuth = await authenticateWithSupabase(email, password);
+        if (sbAuth.success) {
+          valid = true;
+        }
+      }
+    } catch {
+      // Non-blocking fallback
+    }
+  }
+
   if (!valid) return { error: "Invalid email or password." };
 
   const sessionId = await createSession(user.id, user.role);

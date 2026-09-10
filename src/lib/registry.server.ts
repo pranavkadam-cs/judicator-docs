@@ -1,12 +1,17 @@
 /* ─────────────────────────────────────────────────────────────
  *  Vigil.OS — Registry persistence layer
- *  Supports: in-memory → local JSON file → S3
- *  S3 integration can be added later without changing the API.
+ *  Supports: Supabase PostgreSQL → S3 → local JSON file → memory
  * ───────────────────────────────────────────────────────────── */
 
 import type { Registry } from "./dms-types";
 import { buildSeedRegistry } from "./seed-registry";
 import { readJson, s3Configured, writeJson } from "./s3.server";
+import { isSupabaseConfigured } from "./supabase";
+import {
+  loadRegistryFromSupabase,
+  saveRegistryToSupabase,
+} from "./supabase-db.server";
+import { isGoogleCloudStorageConfigured } from "./google-cloud-storage.server";
 
 export const REGISTRY_KEY = "vigil/registry.json";
 
@@ -46,51 +51,89 @@ async function saveToFile(reg: Registry): Promise<boolean> {
 }
 
 export async function loadRegistry(): Promise<Registry> {
-  // Priority 1: S3
+  // Priority 1: In-memory cache (fastest and guarantees local consistency)
+  if (memory) return memory;
+
+  // Priority 2: Supabase PostgreSQL (Cloud Database)
+  if (isSupabaseConfigured()) {
+    try {
+      const supabaseReg = await loadRegistryFromSupabase();
+      if (supabaseReg && Array.isArray(supabaseReg.cases)) {
+        memory = supabaseReg;
+        // Mirror to local file for offline resilience
+        void saveToFile(supabaseReg);
+        return supabaseReg;
+      }
+    } catch (err) {
+      console.warn(`[Vigil.OS] Supabase load notice: ${err}`);
+    }
+  }
+
+  // Priority 3: S3
   if (s3Configured()) {
     const remote = await readJson<Registry>(REGISTRY_KEY);
-    if (remote && Array.isArray(remote.cases)) return remote;
+    if (remote && Array.isArray(remote.cases)) {
+      memory = remote;
+      return remote;
+    }
     const seeded = await buildSeedRegistry();
     await writeJson(REGISTRY_KEY, seeded);
+    memory = seeded;
     return seeded;
   }
 
-  // Priority 2: In-memory cache
-  if (memory) return memory;
-
-  // Priority 3: Local file
+  // Priority 4: Local file
   const local = await loadFromFile();
   if (local) {
     memory = local;
+    // If Supabase is configured but was empty, seed Supabase from local file
+    if (isSupabaseConfigured()) {
+      void saveRegistryToSupabase(local);
+    }
     return local;
   }
 
-  // Priority 4: Seed fresh registry
+  // Priority 5: Seed fresh registry
   const seeded = await buildSeedRegistry();
   memory = seeded;
   await saveToFile(seeded);
+
+  if (isSupabaseConfigured()) {
+    void saveRegistryToSupabase(seeded);
+  }
+
   return seeded;
 }
 
 export async function saveRegistry(reg: Registry): Promise<void> {
   reg.version += 1;
+  memory = reg;
+
+  // Always mirror to local file
+  void saveToFile(reg);
+
+  // If Supabase is active, persist to PostgreSQL
+  if (isSupabaseConfigured()) {
+    try {
+      const ok = await saveRegistryToSupabase(reg);
+      if (ok) return;
+    } catch (err) {
+      console.warn(`[Vigil.OS] Supabase save notice: ${err}`);
+    }
+  }
 
   if (s3Configured()) {
     const ok = await writeJson(REGISTRY_KEY, reg);
-    if (!ok)
-      throw new Error(
-        "Could not persist the registry to the linked S3 bucket.",
-      );
-    return;
+    if (!ok) {
+      throw new Error("Could not persist the registry to the linked S3 bucket.");
+    }
   }
-
-  memory = reg;
-  await saveToFile(reg);
 }
 
-import { isGoogleCloudStorageConfigured } from "./google-cloud-storage.server";
-
-export function storageMode(): "google-cloud" | "s3" | "local" {
+export function storageMode(): "supabase" | "google-cloud" | "s3" | "local" {
+  if (isSupabaseConfigured()) {
+    return "supabase";
+  }
   if (isGoogleCloudStorageConfigured()) {
     return "google-cloud";
   }

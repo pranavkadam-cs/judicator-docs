@@ -46,6 +46,10 @@ import {
   uploadToGoogleCloud,
 } from "./google-cloud-storage.server";
 import {
+  isSupabaseStorageConfigured,
+  uploadToSupabaseStorage,
+} from "./supabase-storage.server";
+import {
   anchorDocumentHash,
   anchorSignatureEvent,
   anchorTamperEvent,
@@ -339,6 +343,26 @@ export async function registerDocument(input: {
   // Persist original file to local storage (before OCR, ensuring forensic custody)
   await saveLocalFile(objectKey, fileBuffer);
 
+  // Persist case file to Supabase Storage Vault
+  let supabaseUpload: { fileUri?: string | undefined; name: string } | null = null;
+  if (isSupabaseStorageConfigured() && process.env["NODE_ENV"] !== "test") {
+    try {
+      const sbResult = await uploadToSupabaseStorage(
+        objectKey,
+        fileBuffer,
+        mimeType,
+      );
+      if (sbResult.success) {
+        supabaseUpload = {
+          fileUri: sbResult.publicUrl || sbResult.signedUrl,
+          name: sbResult.objectKey,
+        };
+      }
+    } catch (sbErr: any) {
+      console.warn(`[Vigil.OS] Supabase Storage upload note: ${sbErr.message}`);
+    }
+  }
+
   // Persist case file to Google Cloud Storage infrastructure
   let cloudUpload: { fileUri: string; name: string } | null = null;
   if (isGoogleCloudStorageConfigured() && process.env["NODE_ENV"] !== "test") {
@@ -361,7 +385,16 @@ export async function registerDocument(input: {
   }
 
   const signed = await signUpload(objectKey).catch(() => null);
-  const activeStorage = cloudUpload ? "google-cloud" : signed ? "s3" : "local";
+  const activeStorage = supabaseUpload
+    ? "supabase"
+    : cloudUpload
+    ? "google-cloud"
+    : signed
+    ? "s3"
+    : "local";
+  const activeCloudUri = supabaseUpload?.fileUri || cloudUpload?.fileUri;
+  const activeCloudName = supabaseUpload?.name || cloudUpload?.name;
+  const activeCloudProject = supabaseUpload ? "supabase-vault" : "324957553228";
 
   // Execute Optical Character Recognition (OCR) / Text Extraction
   // Note: Operates on original byte stream; original file and SHA-256 are unchanged
@@ -393,9 +426,9 @@ export async function registerDocument(input: {
     integrity_status: "VERIFIED",
     last_verified_at: now,
     verification_count: 1,
-    cloud_uri: cloudUpload?.fileUri,
-    cloud_name: cloudUpload?.name,
-    cloud_project: "324957553228",
+    cloud_uri: activeCloudUri,
+    cloud_name: activeCloudName,
+    cloud_project: activeCloudProject,
     ocr_status: ocrResult.status,
     ocr_text: ocrResult.text,
     ocr_processed_at: ocrResult.processedAt,
@@ -409,10 +442,10 @@ export async function registerDocument(input: {
       existing.updatedAt = now;
       existing.status = "SEALED";
       existing.storage = activeStorage;
-      if (cloudUpload) {
-        existing.cloud_uri = cloudUpload.fileUri;
-        existing.cloud_name = cloudUpload.name;
-        existing.cloud_project = "324957553228";
+      if (activeCloudUri) {
+        existing.cloud_uri = activeCloudUri;
+        existing.cloud_name = activeCloudName;
+        existing.cloud_project = activeCloudProject;
       }
       existing.ocr_status = ocrResult.status;
       existing.ocr_text = ocrResult.text;
@@ -454,9 +487,9 @@ export async function registerDocument(input: {
         createdAt: now,
         createdById: input.actor.id,
         storage: activeStorage,
-        cloud_uri: cloudUpload?.fileUri,
-        cloud_name: cloudUpload?.name,
-        cloud_project: "324957553228",
+        cloud_uri: activeCloudUri,
+        cloud_name: activeCloudName,
+        cloud_project: activeCloudProject,
         ocr_status: ocrResult.status,
         ocr_text: ocrResult.text,
         ocr_language: ocrResult.language,
@@ -568,7 +601,7 @@ export async function registerDocument(input: {
           actor: input.actor.name,
           actorId: input.actor.id,
           role: input.actor.role,
-          action: "BLOCKCHAIN_ANCHORED",
+          action: "BLOCKCHAIN_ANCHORED" as const,
           target: doc.name,
           targetId: doc.id,
           detail: `SHA-256 hash anchored to ${bcResult.simulated ? "simulation ledger" : "Hyperledger Fabric"} at block #${bcResult.blockIndex} (tx: ${bcResult.txId.slice(0, 12)}...).`,
@@ -773,7 +806,7 @@ export async function downloadDocumentWithIntegrity(input: {
             actor: input.actor.name,
             actorId: input.actor.id,
             role: input.actor.role,
-            action: "BLOCKCHAIN_ANCHORED",
+            action: "BLOCKCHAIN_ANCHORED" as const,
             target: doc.name,
             targetId: doc.id,
             detail: `TAMPER ALERT anchored to ${bcResult.simulated ? "simulation ledger" : "Hyperledger Fabric"} at block #${bcResult.blockIndex} (tx: ${bcResult.txId.slice(0, 12)}...).`,
@@ -847,7 +880,7 @@ export async function downloadDocumentWithIntegrity(input: {
           actor: input.actor.name,
           actorId: input.actor.id,
           role: input.actor.role,
-          action: "BLOCKCHAIN_ANCHORED",
+          action: "BLOCKCHAIN_ANCHORED" as const,
           target: doc.name,
           targetId: doc.id,
           detail: `Integrity verification anchored to ${bcResult.simulated ? "simulation ledger" : "Hyperledger Fabric"} at block #${bcResult.blockIndex} (tx: ${bcResult.txId.slice(0, 12)}...).`,
@@ -1141,7 +1174,7 @@ export async function signDocument(input: {
           actor: input.actor.name,
           actorId: input.actor.id,
           role: input.actor.role,
-          action: "BLOCKCHAIN_ANCHORED",
+          action: "BLOCKCHAIN_ANCHORED" as const,
           target: doc.name,
           targetId: doc.id,
           detail: `Digital signature anchored to ${bcResult.simulated ? "simulation ledger" : "Hyperledger Fabric"} at block #${bcResult.blockIndex} (tx: ${bcResult.txId.slice(0, 12)}...).`,

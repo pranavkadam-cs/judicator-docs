@@ -390,3 +390,20 @@ export const verifyBlockchainEntryFn = createServerFn({ method: "POST" })
     if (!result) throw new Error("Transaction not found in the ledger.");
     return result;
   });
+
+// ── Supabase Diagnostic Function ──────────────────────────────
+
+export const fetchSupabaseStatus = createServerFn({ method: "GET" })
+  .handler(async () => {
+    const { checkSupabaseConnection, isSupabaseConfigured, getSupabaseConfig } = await import("./supabase");
+    const configured = isSupabaseConfigured();
+    const config = getSupabaseConfig();
+    const health = await checkSupabaseConnection();
+    return {
+      configured,
+      url: config?.url ? `${config.url.slice(0, 18)}...` : null,
+      bucket: config?.bucket || "evidence-vault",
+      health,
+    };
+  });
+

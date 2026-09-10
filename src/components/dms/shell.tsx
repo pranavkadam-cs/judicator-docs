@@ -132,11 +132,36 @@ export function AppShell({
 
           <div
             className={cn(
-              "font-mono text-[9px] tracking-[0.14em] uppercase text-center",
-              snapshot.data?.storage === "s3" ? "text-seal" : "text-muted-foreground",
+              "font-mono text-[9px] tracking-[0.14em] uppercase text-center flex items-center justify-center gap-1.5",
+              snapshot.data?.storage === "supabase"
+                ? "text-emerald-400 font-semibold"
+                : snapshot.data?.storage === "google-cloud"
+                ? "text-blue-400"
+                : snapshot.data?.storage === "s3"
+                ? "text-seal"
+                : "text-muted-foreground",
             )}
           >
-            Store: {snapshot.data?.storage === "s3" ? "S3 object store" : "local registry"}
+            <span
+              className={cn(
+                "size-1.5 rounded-full inline-block",
+                snapshot.data?.storage === "supabase"
+                  ? "bg-emerald-400 animate-pulse"
+                  : snapshot.data?.storage === "google-cloud"
+                  ? "bg-blue-400"
+                  : snapshot.data?.storage === "s3"
+                  ? "bg-cyan-400"
+                  : "bg-muted-foreground/40",
+              )}
+            />
+            Store:{" "}
+            {snapshot.data?.storage === "supabase"
+              ? "Supabase Cloud"
+              : snapshot.data?.storage === "google-cloud"
+              ? "Google Cloud"
+              : snapshot.data?.storage === "s3"
+              ? "S3 Object Store"
+              : "Local Registry"}
           </div>
         </div>
       </aside>

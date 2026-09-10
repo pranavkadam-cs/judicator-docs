@@ -153,7 +153,7 @@ export async function uploadToGoogleCloud(
       "X-Goog-Upload-Offset": "0",
       "X-Goog-Upload-Command": "upload, finalize",
     },
-    body: fileBuffer,
+    body: new Uint8Array(fileBuffer),
   });
 
   if (!uploadResponse.ok) {

@@ -125,12 +125,25 @@ export async function simulateTamperFile(objectKey: string): Promise<{
 }
 
 /**
- * Unified file retrieval: pulls file bytes from either local storage or S3.
+ * Unified file retrieval: pulls file bytes from local storage, Supabase, or S3.
  */
 export async function retrieveFileBytes(objectKey: string): Promise<Buffer | null> {
   // Check local storage first
   const local = await readLocalFile(objectKey);
   if (local) return local;
+
+  // Fallback to Supabase Storage if configured
+  try {
+    const { downloadFromSupabaseStorage, isSupabaseStorageConfigured } = await import(
+      "./supabase-storage.server"
+    );
+    if (isSupabaseStorageConfigured()) {
+      const fromSupabase = await downloadFromSupabaseStorage(objectKey);
+      if (fromSupabase?.buffer) return fromSupabase.buffer;
+    }
+  } catch {
+    // Non-blocking fallback
+  }
 
   // Fallback to S3 if configured
   if (s3Configured()) {

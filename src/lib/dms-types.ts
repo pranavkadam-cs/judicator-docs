@@ -212,7 +212,7 @@ export type CaseDocument = {
   updatedAt: string;
   createdAt: string;
   createdById: string;
-  storage: "google-cloud" | "s3" | "registry" | "local";
+  storage: "supabase" | "google-cloud" | "s3" | "registry" | "local";
   cloud_uri?: string | undefined;
   cloud_name?: string | undefined;
   cloud_project?: string | undefined;
