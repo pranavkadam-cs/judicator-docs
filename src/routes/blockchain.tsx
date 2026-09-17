@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -17,8 +17,15 @@ import {
   Activity,
   Cpu,
   FileText,
+  Search,
+  ExternalLink,
+  Copy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { WalletButton } from "@/lib/ethereum/WalletButton";
+import { useTotalNotarized } from "@/lib/ethereum/useVerifyOnChain";
+import { useAccount } from "wagmi";
+import { isConfigured, ETH_NETWORK, CONTRACT_ADDRESS, etherscanAddress } from "@/lib/ethereum/config";
 
 export const Route = createFileRoute("/blockchain")({
   component: BlockchainPage,
@@ -55,6 +62,10 @@ function ChainBadge({ valid }: { valid: boolean }) {
 function BlockchainPage() {
   const [verifiedTxs, setVerifiedTxs] = useState<Record<string, boolean>>({});
   const [verifyingTx, setVerifyingTx] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const { isConnected } = useAccount();
+  const { total: onChainCount } = useTotalNotarized();
 
   const getLedger = useServerFn(getBlockchainLedgerFn);
   const verifyEntry = useServerFn(verifyBlockchainEntryFn);
@@ -76,11 +87,11 @@ function BlockchainPage() {
       setVerifiedTxs((prev) => ({ ...prev, [txId]: result.chainValid }));
       if (result.chainValid) {
         toast.success(`Block #${result.blockIndex} — Chain Valid`, {
-          description: `Tx: ${txId.slice(0, 16)}...`,
+          description: `Cryptographic seal verified: ${txId.slice(0, 16)}…`,
         });
       } else {
-        toast.error(`Block #${result.blockIndex} — Chain BROKEN`, {
-          description: "Hash mismatch detected. This entry may have been tampered with.",
+        toast.error(`Block #${result.blockIndex} — Chain Compromised`, {
+          description: "Hash mismatch detected. This record has been altered.",
         });
       }
     } catch (e: any) {
@@ -90,217 +101,296 @@ function BlockchainPage() {
     }
   }
 
-  const isSimulation = transactions.some((t) => t.simulated);
-  const totalBlocks = chainStatus?.totalBlocks ?? 0;
+  const totalBlocks = chainStatus?.totalBlocks ?? transactions.length;
   const chainValid = chainStatus?.valid ?? true;
 
+  // Filtered transactions for quick search
+  const filteredTransactions = useMemo(() => {
+    if (!searchQuery.trim()) return transactions;
+    const q = searchQuery.toLowerCase().trim();
+    return transactions.filter(
+      (tx) =>
+        tx.sha256Hash.toLowerCase().includes(q) ||
+        tx.txId.toLowerCase().includes(q) ||
+        tx.documentName.toLowerCase().includes(q) ||
+        tx.documentId.toLowerCase().includes(q) ||
+        tx.actorName.toLowerCase().includes(q)
+    );
+  }, [transactions, searchQuery]);
+
   return (
-    <AppShell title="Blockchain Ledger" subtitle="Immutable Document Notary">
-      {/* Mode Banner */}
-      <div
-        className={cn(
-          "mb-6 flex items-center gap-3 rounded-sm border px-4 py-3 text-xs",
-          isSimulation
-            ? "border-amber-500/30 bg-amber-500/10 text-amber-400"
-            : "border-green-500/30 bg-green-500/10 text-green-400",
-        )}
-      >
-        <Cpu className="size-4 shrink-0" />
-        <div>
-          <div className="font-mono font-bold uppercase tracking-wider">
-            {isSimulation ? "🔗 Simulation Mode — Local Cryptographic Ledger" : "🌐 Live Mode — Hyperledger Fabric"}
-          </div>
-          <p className="mt-0.5 text-[10px] opacity-80">
-            {isSimulation
-              ? "Document hashes are anchored to a locally-chained SHA-256 ledger (.data/blockchain-ledger.json). Set FABRIC_PEER_ENDPOINT in .env to connect to a live Hyperledger Fabric peer."
-              : "Document hashes are being submitted to a live Hyperledger Fabric peer. All transactions are immutably recorded on the distributed ledger."}
-          </p>
-        </div>
-        <div className="ml-auto shrink-0">
-          {chainValid ? (
-            <span className="flex items-center gap-1 font-mono text-[10px] font-bold text-green-400">
-              <ShieldCheck className="size-4" /> Chain Intact
-            </span>
-          ) : (
-            <span className="flex items-center gap-1 font-mono text-[10px] font-bold text-destructive">
-              <ShieldAlert className="size-4" /> Chain Compromised at Block #{chainStatus?.brokenAtBlock}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4 animate-entry">
-        <Stat
-          label="Total anchored"
-          value={totalBlocks}
-          hint="blockchain transactions"
-        />
-        <Stat
-          label="Notarized"
-          value={transactions.filter((t) => t.eventType === "DOCUMENT_NOTARIZED").length}
-          hint="document uploads"
-        />
-        <Stat
-          label="Signatures"
-          value={transactions.filter((t) => t.eventType === "DOCUMENT_SIGNED").length}
-          hint="digital signatures"
-        />
-        <Stat
-          label="Tamper events"
-          value={transactions.filter((t) => t.eventType === "TAMPER_DETECTED").length}
-          hint="integrity violations"
-        />
-      </div>
-
-      {/* Ledger Table */}
-      <Panel className="p-0 overflow-hidden">
-        <div className="flex items-center justify-between border-b border-border px-5 py-4">
-          <div className="flex items-center gap-2">
-            <Link2 className="size-4 text-primary" />
-            <Label>Ledger Transactions</Label>
-            {ledger?.chainId && (
-              <span className="font-mono text-[9px] text-muted-foreground border border-border rounded-sm px-1.5 py-0.5">
-                {ledger.chainId}
-              </span>
-            )}
-          </div>
+    <AppShell
+      title="Blockchain Ledger"
+      subtitle="Forensic Chain of Custody & Ethereum Notary"
+      actions={
+        <div className="flex items-center gap-2">
+          <WalletButton />
           <button
             onClick={() => void refetch()}
-            className="flex items-center gap-1.5 rounded-sm border border-border px-2.5 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider text-foreground hover:bg-accent cursor-pointer"
+            className="flex items-center gap-1.5 rounded-sm border border-border bg-background px-2.5 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider text-foreground hover:bg-accent cursor-pointer"
           >
             <RefreshCw className="size-3" /> Refresh
           </button>
         </div>
-
-        {isPending && (
-          <div className="p-8 text-center text-xs text-muted-foreground">Loading ledger…</div>
-        )}
-        {error && (
-          <div className="p-8 text-center text-xs text-destructive">Failed to load ledger: {String(error)}</div>
-        )}
-        {!isPending && transactions.length === 0 && (
-          <div className="flex flex-col items-center gap-3 p-12 text-center">
-            <Database className="size-8 text-muted-foreground/40" />
-            <div className="text-sm font-semibold text-foreground">No blockchain transactions yet</div>
-            <p className="text-xs text-muted-foreground max-w-sm">
-              Upload a document, verify its integrity, or apply a digital signature to anchor the first transaction to the ledger.
-            </p>
+      }
+    >
+      <div className="space-y-6">
+        {/* Security Status Header */}
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-sm border border-border bg-muted/20 p-4">
+          <div className="flex items-center gap-3">
+            {chainValid ? (
+              <div className="flex size-9 items-center justify-center rounded-sm bg-green-500/10 text-green-400 border border-green-500/30">
+                <ShieldCheck className="size-5" />
+              </div>
+            ) : (
+              <div className="flex size-9 items-center justify-center rounded-sm bg-destructive/10 text-destructive border border-destructive/30">
+                <ShieldAlert className="size-5" />
+              </div>
+            )}
+            <div>
+              <div className="font-mono text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-2">
+                {chainValid ? "Chain of Custody: Cryptographically Intact" : "Security Warning: Chain Broken"}
+                <span className="inline-block size-2 rounded-full bg-green-400 animate-pulse" />
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {totalBlocks} blocks linked by immutable SHA-256 hashes · Constant-time verification active
+              </p>
+            </div>
           </div>
-        )}
 
-        {transactions.length > 0 && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-border bg-muted/30">
-                  <th className="px-4 py-2.5 text-left font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Block</th>
-                  <th className="px-4 py-2.5 text-left font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Event</th>
-                  <th className="px-4 py-2.5 text-left font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Document</th>
-                  <th className="px-4 py-2.5 text-left font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground">SHA-256</th>
-                  <th className="px-4 py-2.5 text-left font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Tx ID</th>
-                  <th className="px-4 py-2.5 text-left font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Actor</th>
-                  <th className="px-4 py-2.5 text-left font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Timestamp</th>
-                  <th className="px-4 py-2.5 text-left font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Chain</th>
-                  <th className="px-4 py-2.5 text-left font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {[...transactions].reverse().map((tx) => {
-                  const verifiedState = verifiedTxs[tx.txId];
-                  const isVerifying = verifyingTx === tx.txId;
-                  return (
-                    <tr key={tx.txId} className="hover:bg-muted/20 transition-colors">
-                      <td className="px-4 py-3">
-                        <span className="font-mono text-[10px] font-bold text-primary">#{tx.blockIndex}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <EventTypeBadge type={tx.eventType} />
-                      </td>
-                      <td className="px-4 py-3 max-w-[160px]">
-                        <Link
-                          to="/documents/$docId"
-                          params={{ docId: tx.documentId }}
-                          className="text-xs text-foreground hover:text-primary hover:underline truncate block"
-                        >
-                          <div className="flex items-center gap-1">
-                            <FileText className="size-3 shrink-0 text-muted-foreground" />
-                            <span className="truncate">{tx.documentName}</span>
-                          </div>
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className="font-mono text-[9px] text-muted-foreground cursor-pointer hover:text-foreground"
-                          title={tx.sha256Hash}
-                          onClick={() => {
-                            void navigator.clipboard.writeText(tx.sha256Hash);
-                            toast.success("Hash copied");
-                          }}
-                        >
-                          {tx.sha256Hash.slice(0, 8)}…{tx.sha256Hash.slice(-6)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className="font-mono text-[9px] text-muted-foreground cursor-pointer hover:text-foreground"
-                          title={tx.txId}
-                          onClick={() => {
-                            void navigator.clipboard.writeText(tx.txId);
-                            toast.success("Tx ID copied");
-                          }}
-                        >
-                          {tx.txId.slice(0, 10)}…
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="text-xs text-foreground">{tx.actorName}</div>
-                        <div className="font-mono text-[9px] text-muted-foreground">{tx.actorRole}</div>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="text-[10px] text-muted-foreground">{formatDate(tx.timestamp)}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        {verifiedState !== undefined ? (
-                          <ChainBadge valid={verifiedState} />
-                        ) : (
-                          <span className="font-mono text-[9px] text-muted-foreground">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => void handleVerify(tx.txId)}
-                          disabled={isVerifying}
-                          className="flex items-center gap-1 rounded-sm border border-border px-2 py-1 font-mono text-[9px] font-bold uppercase tracking-wider text-foreground hover:bg-accent cursor-pointer disabled:opacity-40"
-                        >
-                          {isVerifying ? (
-                            <RefreshCw className="size-2.5 animate-spin" />
-                          ) : (
-                            <Activity className="size-2.5" />
-                          )}
-                          Verify
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="flex items-center gap-3">
+            {isConfigured ? (
+              <div className="flex items-center gap-2 rounded-sm border border-border bg-background px-3 py-1.5 text-[11px] font-mono">
+                <span className="size-2 rounded-full bg-green-400" />
+                <span className="text-muted-foreground">Ethereum:</span>
+                <span className="font-bold text-foreground">
+                  {ETH_NETWORK === "sepolia" ? "Sepolia Testnet" : "Mainnet"}
+                </span>
+                {isConnected && (
+                  <span className="text-[10px] text-primary">· MetaMask Connected</span>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 rounded-sm border border-border bg-background px-3 py-1.5 text-[11px] font-mono text-muted-foreground">
+                <span className="size-2 rounded-full bg-muted-foreground" />
+                <span>Local Chained Mode</span>
+              </div>
+            )}
           </div>
-        )}
-      </Panel>
-
-      {/* Chain Info Footer */}
-      {ledger && (
-        <div className="mt-4 flex flex-wrap items-center gap-4 rounded-sm border border-border bg-muted/20 px-4 py-3 text-[10px] text-muted-foreground font-mono">
-          <span>Chain ID: <strong className="text-foreground">{ledger.chainId}</strong></span>
-          <span>Genesis: <strong className="text-foreground">{ledger.genesisHash.slice(0, 12)}…</strong></span>
-          <span>Last updated: <strong className="text-foreground">{formatDate(ledger.lastUpdatedAt)}</strong></span>
-          <span className="ml-auto">
-            Ledger: <strong className="text-foreground">.data/blockchain-ledger.json</strong>
-          </span>
         </div>
-      )}
+
+        {/* Key Security Stats */}
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 animate-entry">
+          <Stat
+            label="Sealed Blocks"
+            value={totalBlocks}
+            hint="cryptographic chain links"
+          />
+          <Stat
+            label="Notarized Docs"
+            value={transactions.filter((t) => t.eventType === "DOCUMENT_NOTARIZED").length}
+            hint="authoritative SHA-256 seals"
+          />
+          <Stat
+            label="Digital Signatures"
+            value={transactions.filter((t) => t.eventType === "DOCUMENT_SIGNED").length}
+            hint="tamper-evident signatures"
+          />
+          <Stat
+            label="Ethereum Contract"
+            value={isConfigured ? (onChainCount !== null ? `${onChainCount} on-chain` : "Active") : "Ready"}
+            hint={isConfigured && CONTRACT_ADDRESS ? `${CONTRACT_ADDRESS.slice(0, 6)}…${CONTRACT_ADDRESS.slice(-4)}` : "DocumentNotary.sol"}
+          />
+        </div>
+
+        {/* Quick Hash Verification Tool */}
+        <Panel className="p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Search className="size-4 text-primary" />
+              <Label>Forensic Hash &amp; Block Lookup</Label>
+            </div>
+            <span className="text-[10px] font-mono text-muted-foreground">
+              Filter by SHA-256, Tx ID, Document Name, or Investigator
+            </span>
+          </div>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Paste SHA-256 digest or transaction hash to verify…"
+              className="w-full rounded-sm border border-border bg-background pl-9 pr-4 py-2 font-mono text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[10px] text-muted-foreground hover:text-foreground"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </Panel>
+
+        {/* Ledger Transactions Table */}
+        <Panel className="p-0 overflow-hidden">
+          <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
+            <div className="flex items-center gap-2">
+              <Link2 className="size-4 text-primary" />
+              <Label>Immutable Audit Ledger</Label>
+              {searchQuery && (
+                <span className="font-mono text-[9px] bg-primary/10 text-primary border border-primary/20 rounded-sm px-1.5 py-0.5">
+                  {filteredTransactions.length} of {transactions.length} matching
+                </span>
+              )}
+            </div>
+            {isConfigured && CONTRACT_ADDRESS && (
+              <a
+                href={etherscanAddress(CONTRACT_ADDRESS)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 font-mono text-[10px] text-primary hover:underline"
+              >
+                Smart Contract on Etherscan <ExternalLink className="size-2.5" />
+              </a>
+            )}
+          </div>
+
+          {isPending && (
+            <div className="p-8 text-center text-xs text-muted-foreground">Loading ledger transactions…</div>
+          )}
+
+          {Boolean(error) && (
+            <div className="p-8 text-center text-xs text-destructive">
+              Failed to load ledger: {error instanceof Error ? error.message : "Unknown error"}
+            </div>
+          )}
+
+          {!isPending && filteredTransactions.length === 0 && (
+            <div className="flex flex-col items-center gap-3 p-12 text-center">
+              <Database className="size-8 text-muted-foreground/40" />
+              <div className="text-sm font-semibold text-foreground">
+                {searchQuery ? "No matching blocks found" : "No blockchain transactions yet"}
+              </div>
+              <p className="text-xs text-muted-foreground max-w-sm">
+                {searchQuery
+                  ? "Try searching with a partial SHA-256 hash or document ID."
+                  : "Upload a document to anchor the first cryptographic block into the chain of custody."}
+              </p>
+            </div>
+          )}
+
+          {filteredTransactions.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border bg-muted/30">
+                    <th className="px-4 py-2.5 text-left font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Block</th>
+                    <th className="px-4 py-2.5 text-left font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Event</th>
+                    <th className="px-4 py-2.5 text-left font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Document</th>
+                    <th className="px-4 py-2.5 text-left font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground">SHA-256 Digest</th>
+                    <th className="px-4 py-2.5 text-left font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Tx Hash</th>
+                    <th className="px-4 py-2.5 text-left font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Actor</th>
+                    <th className="px-4 py-2.5 text-left font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Timestamp</th>
+                    <th className="px-4 py-2.5 text-left font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Chain Seal</th>
+                    <th className="px-4 py-2.5 text-right font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {[...filteredTransactions].reverse().map((tx) => {
+                    const verifiedState = verifiedTxs[tx.txId];
+                    const isVerifying = verifyingTx === tx.txId;
+                    return (
+                      <tr key={tx.txId} className="hover:bg-muted/20 transition-colors">
+                        <td className="px-4 py-3">
+                          <span className="font-mono text-[10px] font-bold text-primary">#{tx.blockIndex}</span>
+                        </td>
+                        <td className="px-4 py-3"><EventTypeBadge type={tx.eventType} /></td>
+                        <td className="px-4 py-3 max-w-[170px]">
+                          <Link
+                            to="/documents/$docId"
+                            params={{ docId: tx.documentId }}
+                            className="text-xs text-foreground hover:text-primary hover:underline truncate block"
+                          >
+                            <div className="flex items-center gap-1">
+                              <FileText className="size-3 shrink-0 text-muted-foreground" />
+                              <span className="truncate">{tx.documentName}</span>
+                            </div>
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className="font-mono text-[9px] text-muted-foreground cursor-pointer hover:text-foreground inline-flex items-center gap-1"
+                            title="Click to copy full SHA-256"
+                            onClick={() => {
+                              void navigator.clipboard.writeText(tx.sha256Hash);
+                              toast.success("SHA-256 copied to clipboard");
+                            }}
+                          >
+                            {tx.sha256Hash.slice(0, 8)}…{tx.sha256Hash.slice(-6)}
+                            <Copy className="size-2.5 opacity-60" />
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className="font-mono text-[9px] text-muted-foreground cursor-pointer hover:text-foreground inline-flex items-center gap-1"
+                            title="Click to copy Tx ID"
+                            onClick={() => {
+                              void navigator.clipboard.writeText(tx.txId);
+                              toast.success("Transaction ID copied to clipboard");
+                            }}
+                          >
+                            {tx.txId.slice(0, 10)}…
+                            <Copy className="size-2.5 opacity-60" />
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="text-xs text-foreground">{tx.actorName}</div>
+                          <div className="font-mono text-[9px] text-muted-foreground">{tx.actorRole}</div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className="text-[10px] text-muted-foreground">{formatDate(tx.timestamp)}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          {verifiedState !== undefined ? (
+                            <ChainBadge valid={verifiedState} />
+                          ) : (
+                            <span className="font-mono text-[9px] text-muted-foreground">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            onClick={() => void handleVerify(tx.txId)}
+                            disabled={isVerifying}
+                            className="inline-flex items-center gap-1 rounded-sm border border-border px-2 py-1 font-mono text-[9px] font-bold uppercase tracking-wider text-foreground hover:bg-accent cursor-pointer disabled:opacity-40"
+                          >
+                            {isVerifying ? <RefreshCw className="size-2.5 animate-spin" /> : <Activity className="size-2.5" />}
+                            Verify
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Panel>
+
+        {/* Chain Information Footer */}
+        {ledger && (
+          <div className="flex flex-wrap items-center gap-4 rounded-sm border border-border bg-muted/20 px-4 py-3 text-[10px] text-muted-foreground font-mono">
+            <span>Protocol: <strong className="text-foreground">Vigil.OS SHA-256 Ledger</strong></span>
+            <span>Genesis: <strong className="text-foreground">{ledger.genesisHash.slice(0, 10)}…</strong></span>
+            <span>Last Sync: <strong className="text-foreground">{formatDate(ledger.lastUpdatedAt)}</strong></span>
+            <span className="ml-auto">
+              Vault: <strong className="text-foreground">.data/blockchain-ledger.json</strong>
+            </span>
+          </div>
+        )}
+      </div>
     </AppShell>
   );
 }

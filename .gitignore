@@ -38,3 +38,8 @@ dist-ssr
 # Test data
 .data/storage/vigil/cases/case-test-sih/
 .data/storage/vigil/cases/case-ocr-test-01/
+
+# Hardhat build artifacts
+artifacts/
+cache/
+

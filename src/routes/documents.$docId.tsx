@@ -30,6 +30,7 @@ import { shortHash, ROLE_PROFILE, CLASSIFICATIONS, canRead, type Classification 
 import { SUPPORTED_OCR_LANGUAGES } from "@/lib/ocr/ocr-types";
 import { WorkflowActions } from "@/components/dms/workflow-actions";
 import { SharePanel } from "@/components/dms/share-panel";
+import { NotarizeButton } from "@/lib/ethereum/NotarizeButton";
 import {
   ShieldCheck,
   ShieldAlert,
@@ -740,7 +741,7 @@ function DocumentDetailsPage() {
           ) : (
             <Panel className="p-5 space-y-4">
               <div className="flex items-center justify-between border-b border-border pb-3">
-                <Label>Blockchain Ledger & Anchors</Label>
+                <Label>Blockchain Ledger &amp; Ethereum Anchors</Label>
                 <Link
                   to="/blockchain"
                   className="inline-flex items-center gap-1 text-[10px] font-mono font-bold uppercase tracking-wider text-primary hover:underline"
@@ -748,19 +749,30 @@ function DocumentDetailsPage() {
                   View Full Ledger <ExternalLink className="size-3" />
                 </Link>
               </div>
-              
+
+              {/* Ethereum notarize button */}
+              <div>
+                <div className="mb-2 font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Ethereum Notarization
+                </div>
+                <NotarizeButton
+                  sha256Hash={current?.hash ?? ""}
+                  documentId={doc.id}
+                  documentName={doc.name}
+                />
+              </div>
+
+              {/* Local ledger link */}
               <div className="rounded-sm border border-border bg-muted/20 p-4">
-                <div className="flex flex-col items-center justify-center gap-3 py-6 text-center">
-                  <Cpu className="size-8 text-muted-foreground/40" />
-                  <div className="text-sm font-semibold text-foreground">
-                    Blockchain Anchors
-                  </div>
-                  <p className="text-xs text-muted-foreground max-w-sm">
-                    This document's cryptographic hashes and integrity events are anchored to the blockchain. View the full ledger to verify the chain of custody.
+                <div className="flex flex-col items-center justify-center gap-3 py-2 text-center">
+                  <Cpu className="size-6 text-muted-foreground/40" />
+                  <div className="text-xs font-semibold text-foreground">Local SHA-256 Ledger</div>
+                  <p className="text-[10px] text-muted-foreground max-w-sm">
+                    This document's cryptographic hashes and integrity events are also anchored to the local SHA-256 ledger.
                   </p>
                   <Link
                     to="/blockchain"
-                    className="mt-2 rounded-sm bg-primary px-4 py-2 font-mono text-[10px] font-bold uppercase tracking-wider text-primary-foreground hover:opacity-90"
+                    className="mt-1 rounded-sm bg-primary px-4 py-2 font-mono text-[10px] font-bold uppercase tracking-wider text-primary-foreground hover:opacity-90"
                   >
                     Verify on Ledger Explorer
                   </Link>

@@ -1,4 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { WagmiProvider } from "wagmi";
+import { wagmiConfig } from "../lib/ethereum/config";
 import {
   Outlet,
   Link,
@@ -118,12 +120,14 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <ActorProvider>
-        <AppContent />
-        <Toaster position="bottom-right" theme="dark" />
-      </ActorProvider>
-    </QueryClientProvider>
+    <WagmiProvider config={wagmiConfig}>
+      <QueryClientProvider client={queryClient}>
+        <ActorProvider>
+          <AppContent />
+          <Toaster position="bottom-right" theme="dark" />
+        </ActorProvider>
+      </QueryClientProvider>
+    </WagmiProvider>
   );
 }
 

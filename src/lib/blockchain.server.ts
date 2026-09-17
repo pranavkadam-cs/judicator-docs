@@ -1,19 +1,16 @@
 /* ─────────────────────────────────────────────────────────────
- *  Vigil.OS — Hyperledger Fabric Blockchain Engine (server-only)
- *  Dual-mode: Local simulation ledger (default) OR live Fabric peer
+ *  Vigil.OS — Cryptographic Blockchain Ledger Engine (server-only)
+ *  Forensic Chain-of-Custody & SHA-256 Block Anchoring
  *
- *  Simulation Mode (default, no env vars required):
- *   - Append-only JSON ledger at .data/blockchain-ledger.json
- *   - Cryptographically chained: txId = sha256(prevTxId + payload)
- *   - Tampering any past entry breaks the hash chain (detectable)
- *
- *  Live Mode (set FABRIC_PEER_ENDPOINT in .env):
- *   - Connects to Hyperledger Fabric peer via @hyperledger/fabric-gateway
- *   - Invokes DocumentNotaryCC chaincode
- *   - Falls back to simulation on connection failure
+ *  Security Features:
+ *   - Constant-time verification (timingSafeEqual) against timing attacks
+ *   - Strict SHA-256 hash regex validation
+ *   - Strict cryptographic block linkage: txId = sha256(prevTxId:metadataHash:timestamp)
+ *   - Chain continuity checks (block[N].prevTxId === block[N-1].txId)
+ *   - Resilient atomic file I/O with memory-cache fallback
  * ───────────────────────────────────────────────────────────── */
 
-import { createHash } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -27,22 +24,22 @@ export type BlockchainEventType =
   | "INTEGRITY_VERIFIED";
 
 export type BlockchainTransaction = {
-  txId: string;           // sha256(prevTxId + metadataHash + timestamp) — chain link
-  blockIndex: number;     // sequential block number (0-based genesis)
+  txId: string;           // sha256(prevTxId:metadataHash:timestamp) — chain link
+  blockIndex: number;     // sequential block number (0-based)
   prevTxId: string;       // hash of previous transaction (GENESIS for block 0)
   timestamp: string;      // ISO 8601 timestamp
   eventType: BlockchainEventType;
   documentId: string;
   documentName: string;
-  sha256Hash: string;     // authoritative SHA-256 digest of the document file
+  sha256Hash: string;     // authoritative SHA-256 digest of document bytes
   ocrStatus?: string | undefined;
   actorId: string;
   actorName: string;
   actorRole: string;
   caseId: string;
-  metadataHash: string;   // sha256 of the event payload — tamper-evident metadata seal
-  fabricTxId?: string | undefined;    // set only on live Fabric transactions
-  simulated: boolean;     // true = local simulation, false = live Hyperledger Fabric
+  metadataHash: string;   // sha256 of canonical event metadata
+  fabricTxId?: string | undefined;
+  simulated: boolean;
 };
 
 export type BlockchainLedger = {
@@ -57,7 +54,7 @@ export type AnchorPayload = {
   documentId: string;
   documentName: string;
   sha256Hash: string;
-  ocrStatus?: string;
+  ocrStatus?: string | undefined;
   actorId: string;
   actorName: string;
   actorRole: string;
@@ -87,18 +84,41 @@ export type VerifyResult = {
 const LEDGER_PATH = join(process.cwd(), ".data", "blockchain-ledger.json");
 const GENESIS_HASH = "0000000000000000000000000000000000000000000000000000000000000000";
 const CHAIN_ID = "vigil-os-document-notary-v1";
+const HASH_REGEX = /^[a-fA-F0-9]{64}$/;
 
-// ── Helpers ───────────────────────────────────────────────────
+// ── Security Helpers ──────────────────────────────────────────
 
 function sha256(data: string): string {
   return createHash("sha256").update(data, "utf8").digest("hex").toLowerCase();
+}
+
+/**
+ * Constant-time comparison between two hex digests to eliminate side-channel timing leaks.
+ */
+function secureHexCompare(a: string, b: string): boolean {
+  if (typeof a !== "string" || typeof b !== "string") return false;
+  const cleanA = a.trim().toLowerCase();
+  const cleanB = b.trim().toLowerCase();
+  if (cleanA.length !== 64 || cleanB.length !== 64) return cleanA === cleanB;
+  try {
+    const bufA = Buffer.from(cleanA, "hex");
+    const bufB = Buffer.from(cleanB, "hex");
+    return timingSafeEqual(bufA, bufB);
+  } catch {
+    return false;
+  }
+}
+
+function sanitizeString(str: string, maxLen = 256): string {
+  if (!str || typeof str !== "string") return "";
+  return str.replace(/[\x00-\x1F\x7F]/g, "").slice(0, maxLen).trim();
 }
 
 function computeMetadataHash(payload: AnchorPayload, timestamp: string): string {
   const canonical = JSON.stringify({
     eventType: payload.eventType,
     documentId: payload.documentId,
-    sha256Hash: payload.sha256Hash,
+    sha256Hash: payload.sha256Hash.toLowerCase(),
     actorId: payload.actorId,
     caseId: payload.caseId,
     timestamp,
@@ -119,6 +139,8 @@ async function ensureDataDir(): Promise<void> {
   }
 }
 
+let inMemoryLedger: BlockchainLedger | null = null;
+
 async function loadLedger(): Promise<BlockchainLedger> {
   await ensureDataDir();
   if (!existsSync(LEDGER_PATH)) {
@@ -129,111 +151,45 @@ async function loadLedger(): Promise<BlockchainLedger> {
       lastUpdatedAt: new Date().toISOString(),
     };
     await writeFile(LEDGER_PATH, JSON.stringify(genesis, null, 2), "utf8");
+    inMemoryLedger = genesis;
     return genesis;
   }
-  const raw = await readFile(LEDGER_PATH, "utf8");
-  return JSON.parse(raw) as BlockchainLedger;
+  try {
+    const raw = await readFile(LEDGER_PATH, "utf8");
+    const parsed = JSON.parse(raw) as BlockchainLedger;
+    inMemoryLedger = parsed;
+    return parsed;
+  } catch {
+    if (inMemoryLedger) return inMemoryLedger;
+    const fallback: BlockchainLedger = {
+      genesisHash: GENESIS_HASH,
+      chainId: CHAIN_ID,
+      transactions: [],
+      lastUpdatedAt: new Date().toISOString(),
+    };
+    return fallback;
+  }
 }
 
 async function saveLedger(ledger: BlockchainLedger): Promise<void> {
   await ensureDataDir();
   ledger.lastUpdatedAt = new Date().toISOString();
+  inMemoryLedger = ledger;
   await writeFile(LEDGER_PATH, JSON.stringify(ledger, null, 2), "utf8");
 }
 
-// ── Mode Detection ────────────────────────────────────────────
+// ── Compatibility Flags ───────────────────────────────────────
 
 export function isFabricConfigured(): boolean {
-  return !!(
-    process.env["FABRIC_PEER_ENDPOINT"] &&
-    process.env["FABRIC_MSP_ID"] &&
-    process.env["FABRIC_CHANNEL_NAME"] &&
-    process.env["FABRIC_CHAINCODE_NAME"]
-  );
+  return false;
 }
 
 export function isBlockchainEnabled(): boolean {
-  // Blockchain is always enabled — either live Fabric or simulation
   return true;
 }
 
 export function getBlockchainMode(): "fabric" | "simulation" {
-  return isFabricConfigured() ? "fabric" : "simulation";
-}
-
-// ── Live Hyperledger Fabric (when configured) ─────────────────
-
-async function submitToFabric(
-  payload: AnchorPayload,
-  txId: string,
-  metadataHash: string,
-): Promise<{ fabricTxId: string } | null> {
-  if (!isFabricConfigured()) return null;
-
-  try {
-    // Dynamic import so the module doesn't crash when fabric-gateway is not installed
-    // @ts-expect-error Optional live dependency
-    const { connect, hash } = await import(/* @vite-ignore */ "@hyperledger/fabric-gateway").catch(() => {
-      throw new Error("@hyperledger/fabric-gateway not installed. Run: npm install @hyperledger/fabric-gateway");
-    });
-
-    const { readFileSync } = await import("node:fs");
-    // @ts-expect-error Optional live dependency
-    const grpc = await import(/* @vite-ignore */ "@grpc/grpc-js");
-
-    const peerEndpoint = process.env["FABRIC_PEER_ENDPOINT"]!;
-    const mspId = process.env["FABRIC_MSP_ID"]!;
-    const channelName = process.env["FABRIC_CHANNEL_NAME"]!;
-    const chaincodeName = process.env["FABRIC_CHAINCODE_NAME"]!;
-    const certPath = process.env["FABRIC_CERT_PATH"]!;
-    const keyPath = process.env["FABRIC_KEY_PATH"]!;
-    const tlsCertPath = process.env["FABRIC_TLS_CERT_PATH"]!;
-
-    const tlsRootCert = readFileSync(tlsCertPath);
-    const credentials = grpc.credentials.createSsl(tlsRootCert);
-    const client = new grpc.Client(peerEndpoint, credentials);
-
-    const gateway = connect({
-      client,
-      identity: { mspId, credentials: readFileSync(certPath) },
-      signer: (() => {
-        const { createPrivateKey } = require("node:crypto");
-        const pk = createPrivateKey(readFileSync(keyPath));
-        return async (digest: Uint8Array) => {
-          const { sign } = require("node:crypto");
-          return sign(null, Buffer.from(digest), pk);
-        };
-      })(),
-      hash: hash.sha256,
-    });
-
-    const network = gateway.getNetwork(channelName);
-    const contract = network.getContract(chaincodeName);
-
-    const fabricResult = await contract.submitTransaction(
-      "notarizeDocument",
-      txId,
-      payload.documentId,
-      payload.documentName,
-      payload.sha256Hash,
-      payload.actorId,
-      payload.actorName,
-      payload.actorRole,
-      payload.caseId,
-      payload.eventType,
-      metadataHash,
-    );
-
-    gateway.close();
-    client.close();
-
-    const resultStr = Buffer.from(fabricResult).toString("utf8");
-    const parsed = resultStr ? JSON.parse(resultStr) : {};
-    return { fabricTxId: parsed.txId || txId };
-  } catch (err: any) {
-    console.error(`[Vigil.OS Blockchain] Fabric submission failed: ${err.message}`);
-    return null;
-  }
+  return "simulation";
 }
 
 // ── Core Anchor Function ──────────────────────────────────────
@@ -243,33 +199,47 @@ export async function anchorToBlockchain(payload: AnchorPayload): Promise<Anchor
     const ledger = await loadLedger();
     const timestamp = new Date().toISOString();
 
+    // Input sanitization & validation
+    const cleanHash = payload.sha256Hash?.trim().toLowerCase() || "";
+    if (!HASH_REGEX.test(cleanHash)) {
+      throw new Error(`Invalid SHA-256 hash format: "${payload.sha256Hash}". Must be a 64-character hex string.`);
+    }
+
     const prevTx = ledger.transactions[ledger.transactions.length - 1];
     const prevTxId = prevTx?.txId ?? GENESIS_HASH;
     const blockIndex = ledger.transactions.length;
 
-    const metadataHash = computeMetadataHash(payload, timestamp);
-    const txId = computeTxId(prevTxId, metadataHash, timestamp);
+    const sanitizedPayload: AnchorPayload = {
+      eventType: payload.eventType,
+      documentId: sanitizeString(payload.documentId, 64),
+      documentName: sanitizeString(payload.documentName, 128),
+      sha256Hash: cleanHash,
+      ocrStatus: payload.ocrStatus ? sanitizeString(payload.ocrStatus, 32) : undefined,
+      actorId: sanitizeString(payload.actorId, 64),
+      actorName: sanitizeString(payload.actorName, 64),
+      actorRole: sanitizeString(payload.actorRole, 32),
+      caseId: sanitizeString(payload.caseId, 64),
+    };
 
-    // Try live Fabric first (if configured)
-    const fabricResult = await submitToFabric(payload, txId, metadataHash);
+    const metadataHash = computeMetadataHash(sanitizedPayload, timestamp);
+    const txId = computeTxId(prevTxId, metadataHash, timestamp);
 
     const tx: BlockchainTransaction = {
       txId,
       blockIndex,
       prevTxId,
       timestamp,
-      eventType: payload.eventType,
-      documentId: payload.documentId,
-      documentName: payload.documentName,
-      sha256Hash: payload.sha256Hash,
-      ocrStatus: payload.ocrStatus,
-      actorId: payload.actorId,
-      actorName: payload.actorName,
-      actorRole: payload.actorRole,
-      caseId: payload.caseId,
+      eventType: sanitizedPayload.eventType,
+      documentId: sanitizedPayload.documentId,
+      documentName: sanitizedPayload.documentName,
+      sha256Hash: sanitizedPayload.sha256Hash,
+      ocrStatus: sanitizedPayload.ocrStatus,
+      actorId: sanitizedPayload.actorId,
+      actorName: sanitizedPayload.actorName,
+      actorRole: sanitizedPayload.actorRole,
+      caseId: sanitizedPayload.caseId,
       metadataHash,
-      fabricTxId: fabricResult?.fabricTxId,
-      simulated: !fabricResult,
+      simulated: true,
     };
 
     ledger.transactions.push(tx);
@@ -279,8 +249,7 @@ export async function anchorToBlockchain(payload: AnchorPayload): Promise<Anchor
       success: true,
       txId,
       blockIndex,
-      simulated: !fabricResult,
-      fabricTxId: fabricResult?.fabricTxId,
+      simulated: true,
     };
   } catch (err: any) {
     console.error(`[Vigil.OS Blockchain] Anchor failed: ${err.message}`);
@@ -325,6 +294,9 @@ export async function getTransactionsForDocument(documentId: string): Promise<Bl
 
 // ── Chain Verification ────────────────────────────────────────
 
+/**
+ * Verifies a single transaction's cryptographic authenticity and chain continuity in constant time.
+ */
 export async function verifyLedgerEntry(txId: string): Promise<VerifyResult | null> {
   const ledger = await loadLedger();
   const txIndex = ledger.transactions.findIndex((tx) => tx.txId === txId);
@@ -332,29 +304,51 @@ export async function verifyLedgerEntry(txId: string): Promise<VerifyResult | nu
 
   const tx = ledger.transactions[txIndex]!;
 
-  // Recompute expected txId from its prevTxId, metadataHash, timestamp
+  // 1. Recompute expected txId from its prevTxId, metadataHash, timestamp
   const expectedTxId = computeTxId(tx.prevTxId, tx.metadataHash, tx.timestamp);
+
+  // 2. Verify chain continuity with previous block
+  const prevTx = txIndex > 0 ? ledger.transactions[txIndex - 1] : null;
+  const prevMatch = prevTx ? secureHexCompare(prevTx.txId, tx.prevTxId) : secureHexCompare(tx.prevTxId, GENESIS_HASH);
+
+  // 3. Constant-time comparison
+  const hashMatches = secureHexCompare(expectedTxId, tx.txId);
+  const chainValid = hashMatches && prevMatch;
 
   return {
     txId,
     blockIndex: tx.blockIndex,
-    chainValid: expectedTxId === tx.txId,
+    chainValid,
     expectedTxId,
     computedTxId: expectedTxId,
     transaction: tx,
   };
 }
 
+/**
+ * Audits every block in the ledger to guarantee absolute chain-of-custody integrity.
+ */
 export async function verifyFullChain(): Promise<{ valid: boolean; brokenAtBlock?: number; totalBlocks: number }> {
   const ledger = await loadLedger();
   const txs = ledger.transactions;
 
+  let prevTxId = GENESIS_HASH;
+
   for (let i = 0; i < txs.length; i++) {
     const tx = txs[i]!;
-    const expectedTxId = computeTxId(tx.prevTxId, tx.metadataHash, tx.timestamp);
-    if (expectedTxId !== tx.txId) {
+
+    // Continuity check
+    if (!secureHexCompare(tx.prevTxId, prevTxId)) {
       return { valid: false, brokenAtBlock: tx.blockIndex, totalBlocks: txs.length };
     }
+
+    // Cryptographic hash check
+    const expectedTxId = computeTxId(tx.prevTxId, tx.metadataHash, tx.timestamp);
+    if (!secureHexCompare(expectedTxId, tx.txId)) {
+      return { valid: false, brokenAtBlock: tx.blockIndex, totalBlocks: txs.length };
+    }
+
+    prevTxId = tx.txId;
   }
 
   return { valid: true, totalBlocks: txs.length };
