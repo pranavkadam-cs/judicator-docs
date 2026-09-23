@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Vigil.OS — DocumentNotary contract ABI and typed helpers
  *
  * The ABI mirrors DocumentNotary.sol exactly.
@@ -89,3 +89,6 @@ export function hexHashToBytes32(hexHash: string): `0x${string}` {
 export function bytes32ToHexHash(bytes32: string): string {
   return bytes32.startsWith("0x") ? bytes32.slice(2) : bytes32;
 }
+
+export { DOCUMENT_NOTARY_BYTECODE } from "./bytecode";
+

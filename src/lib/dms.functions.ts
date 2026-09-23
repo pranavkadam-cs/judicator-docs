@@ -407,3 +407,26 @@ export const fetchSupabaseStatus = createServerFn({ method: "GET" })
     };
   });
 
+export const updateContractAddressFn = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z.object({ address: z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid Ethereum contract address") }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { readFile, writeFile } = await import("node:fs/promises");
+    const { existsSync } = await import("node:fs");
+    const { join } = await import("node:path");
+
+    const envPath = join(process.cwd(), ".env");
+    if (existsSync(envPath)) {
+      let content = await readFile(envPath, "utf8");
+      if (/^VITE_CONTRACT_ADDRESS=.*$/m.test(content)) {
+        content = content.replace(/^VITE_CONTRACT_ADDRESS=.*$/m, `VITE_CONTRACT_ADDRESS=${data.address}`);
+      } else {
+        content += `\nVITE_CONTRACT_ADDRESS=${data.address}\n`;
+      }
+      await writeFile(envPath, content, "utf8");
+    }
+    return { success: true, address: data.address };
+  });
+
+

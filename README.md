@@ -28,7 +28,7 @@
 - [System Architecture](#%EF%B8%8F-system-architecture)
 - [Key Architectural Pillars](#-key-architectural-pillars)
   - [1. SHA-256 Forensic Integrity Engine](#1--sha-256-forensic-integrity-engine-sih-26190)
-  - [2. Dual-Layer Blockchain Notarization](#2--dual-layer-blockchain-notarization)
+  - [2. Dual-Layer Blockchain Notarization](#2-%EF%B8%8F-dual-layer-blockchain-notarization-sih-26190)
   - [3. Multi-Engine OCR Processing](#3--multi-engine-ocr-processing-pipeline)
   - [4. Role-Based Access Control & Classification](#4--role-based-access-control-rbac)
   - [5. Document Workflow Lifecycle](#5--document-workflow-state-machine)
@@ -130,9 +130,9 @@ flowchart LR
 
 ---
 
-### 2. ⛓️ Dual-Layer Blockchain Notarization
+### 2. ⛓️ Dual-Layer Blockchain Notarization (SIH 26190)
 
-Vigil.OS features two complementary blockchain notary engines accessible via `/blockchain`:
+Vigil.OS directly addresses **SIH Problem Statement 26190** by implementing a dual-layer blockchain notarization system that provides immutable, cryptographically verifiable proof-of-existence and chain-of-custody for all digital evidence and legal documents:
 
 #### A. Public Ethereum Notarization (MetaMask + Alchemy)
 - **Smart Contract**: [`contracts/DocumentNotary.sol`](contracts/DocumentNotary.sol) compiled with Solidity `^0.8.20`.
@@ -154,8 +154,31 @@ Vigil.OS features two complementary blockchain notary engines accessible via `/b
 #### B. Local Chained Cryptographic Ledger
 - Implemented in `src/lib/blockchain.server.ts`.
 - Chained JSON ledger (`.data/blockchain-ledger.json`) linking each notarization to the previous block's SHA-256 hash.
+- Cryptographic chain link: `txId = SHA-256(prevTxId : metadataHash : timestamp)` — any single tampered block breaks the entire chain.
 - Independent validation endpoint (`verifyBlockchainEntryFn`) capable of auditing complete block chains and isolating tampered blocks.
 - **Enterprise-Ready**: Drop-in hooks ready for Hyperledger Fabric peers via gRPC.
+
+```mermaid
+flowchart TD
+    Upload[📤 Document Upload] --> Hash[Compute Authoritative SHA-256]
+    Hash --> Anchor[Anchor to Blockchain]
+    Anchor --> Layer1[Layer 1: Ethereum Smart Contract]
+    Anchor --> Layer2[Layer 2: Local SHA-256 Chained Ledger]
+    Layer1 --> EthRecord[Permanent On-Chain NotaryRecord]
+    Layer1 --> Etherscan[Verifiable on Etherscan]
+    Layer2 --> Block[New Block Linked to Previous via SHA-256]
+    Layer2 --> Verify[Full Chain Audit & Tamper Detection]
+    Verify --> Valid{Chain Intact?}
+    Valid -->|✅ Valid| Intact[Chain of Custody: Cryptographically Intact]
+    Valid -->|❌ Broken| Alert[🚫 Security Warning: Chain Compromised]
+
+    style Alert fill:#7f1d1d,stroke:#ef4444,color:#fecaca
+    style Intact fill:#065f46,stroke:#10b981,color:#d1fae5
+    style EthRecord fill:#4338ca,stroke:#a5b4fc,color:#ffffff
+    style Block fill:#064e3b,stroke:#34d399,color:#d1fae5
+```
+
+📖 **Detailed Documentation**: See [`BLOCKCHAIN_ARCHITECTURE.md`](BLOCKCHAIN_ARCHITECTURE.md)
 
 ---
 

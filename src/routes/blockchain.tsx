@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WalletButton } from "@/lib/ethereum/WalletButton";
+import { DeployContractButton } from "@/lib/ethereum/DeployContractModal";
 import { useTotalNotarized } from "@/lib/ethereum/useVerifyOnChain";
 import { useAccount } from "wagmi";
 import { isConfigured, ETH_NETWORK, CONTRACT_ADDRESS, etherscanAddress } from "@/lib/ethereum/config";
@@ -202,6 +203,58 @@ function BlockchainPage() {
             hint={isConfigured && CONTRACT_ADDRESS ? `${CONTRACT_ADDRESS.slice(0, 6)}…${CONTRACT_ADDRESS.slice(-4)}` : "DocumentNotary.sol"}
           />
         </div>
+
+        {/* Ethereum Smart Contract Notary Network */}
+        <Panel className="p-4 bg-primary/5 border-primary/20 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Cpu className="size-4 text-primary" />
+              <Label>Ethereum Smart Contract Notary · EVM Blockchain</Label>
+              <span className="font-mono text-[9px] bg-primary/15 text-primary border border-primary/30 rounded-sm px-1.5 py-0.5 font-bold uppercase">
+                {ETH_NETWORK === "sepolia" ? "Sepolia Testnet (Chain ID 11155111)" : "Ethereum Mainnet"}
+              </span>
+            </div>
+            {isConfigured && CONTRACT_ADDRESS && (
+              <a
+                href={etherscanAddress(CONTRACT_ADDRESS)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 font-mono text-[10px] text-primary hover:underline"
+              >
+                View on Etherscan <ExternalLink className="size-2.5" />
+              </a>
+            )}
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3 text-xs font-mono">
+            <div className="rounded-sm border border-border bg-background p-3">
+              <div className="text-muted-foreground text-[10px] uppercase">Contract Address</div>
+              <div className="mt-1 font-bold text-foreground truncate" title={CONTRACT_ADDRESS}>
+                {isConfigured && CONTRACT_ADDRESS ? `${CONTRACT_ADDRESS.slice(0, 10)}…${CONTRACT_ADDRESS.slice(-8)}` : "Not Deployed"}
+              </div>
+            </div>
+            <div className="rounded-sm border border-border bg-background p-3">
+              <div className="text-muted-foreground text-[10px] uppercase">RPC Infrastructure</div>
+              <div className="mt-1 font-bold text-foreground">
+                Alchemy Web3 JSON-RPC
+              </div>
+            </div>
+            <div className="rounded-sm border border-border bg-background p-3">
+              <div className="text-muted-foreground text-[10px] uppercase">On-Chain Document Seals</div>
+              <div className="mt-1 font-bold text-green-400 flex items-center gap-1">
+                <CheckCircle2 className="size-3" />
+                {onChainCount !== null ? `${onChainCount} documents anchored` : "Live"}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-border/50">
+            <p className="text-[11px] text-muted-foreground">
+              Anchoring documents to Ethereum permanently records their SHA-256 hash, document ID, timestamp, and wallet address.
+            </p>
+            <DeployContractButton />
+          </div>
+        </Panel>
 
         {/* Quick Hash Verification Tool */}
         <Panel className="p-4 space-y-3">
