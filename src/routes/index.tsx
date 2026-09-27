@@ -76,24 +76,6 @@ function Command() {
               >
                 <ShieldCheck className="size-3 text-seal" /> Integrity Audit
               </Link>
-              <Link
-                to="/blockchain"
-                className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-background px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider text-foreground hover:bg-accent"
-              >
-                <Cpu className="size-3 text-primary" /> Alchemy Ledger
-              </Link>
-              <Link
-                to="/reports"
-                className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-background px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider text-foreground hover:bg-accent"
-              >
-                <FileBarChart className="size-3 text-caution" /> Executive Reports
-              </Link>
-              <Link
-                to="/settings"
-                className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-background px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider text-foreground hover:bg-accent"
-              >
-                <Settings className="size-3 text-muted-foreground" /> Settings
-              </Link>
             </div>
 
             {/* Security Alerts Banner for Admins/Investigators */}
@@ -116,7 +98,7 @@ function Command() {
             )}
 
             {/* System Health & Security Subsystems */}
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 font-mono text-xs">
+            <div className="grid gap-3 sm:grid-cols-3 font-mono text-xs">
               <Panel className="p-3.5 space-y-1.5">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -129,21 +111,6 @@ function Command() {
                 </div>
                 <p className="text-[10px] text-muted-foreground">
                   SHA-256 digests validated across records
-                </p>
-              </Panel>
-
-              <Panel className="p-3.5 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                    Blockchain Notarization
-                  </span>
-                  <Cpu className="size-3.5 text-primary" />
-                </div>
-                <div className="text-sm font-bold text-foreground">
-                  Alchemy RPC Ready
-                </div>
-                <p className="text-[10px] text-muted-foreground">
-                  Ethereum Sepolia / Local Hash Ledger
                 </p>
               </Panel>
 

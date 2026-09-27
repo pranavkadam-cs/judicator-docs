@@ -1,5 +1,5 @@
 {
-  "version": 35,
+  "version": 36,
   "users": [
     {
       "id": "usr-admin-001",
@@ -10,7 +10,7 @@
       "passwordHash": "823563d9bb6ff7899588740c139cbbd1:db64e3acd5aa0d583bad11a0c45e975f895fb43757e57e213be1fd7c52e72fb7",
       "isActive": true,
       "createdAt": "2024-01-15T08:00:00.000Z",
-      "lastLoginAt": "2026-09-27T09:26:17.837Z"
+      "lastLoginAt": "2026-09-27T17:13:39.059Z"
     },
     {
       "id": "usr-invest-002",
@@ -1026,6 +1026,19 @@
     }
   ],
   "audit": [
+    {
+      "id": "aud-muk2v7jn3iv8",
+      "at": "2026-09-27T17:13:39.059Z",
+      "actor": "S. Rao",
+      "actorId": "usr-admin-001",
+      "role": "ADMIN",
+      "action": "USER_LOGIN",
+      "target": "admin@vigil.os",
+      "targetId": "usr-admin-001",
+      "detail": "Authenticated successfully.",
+      "hash": null,
+      "ipAddress": null
+    },
     {
       "id": "aud-mujm66stjymm",
       "at": "2026-09-27T09:26:17.837Z",

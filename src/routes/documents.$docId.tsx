@@ -32,7 +32,6 @@ import { SUPPORTED_OCR_LANGUAGES } from "@/lib/ocr/ocr-types";
 import { WorkflowActions } from "@/components/dms/workflow-actions";
 import { SharePanel } from "@/components/dms/share-panel";
 import { IntegrityCertificate } from "@/components/dms/integrity-certificate";
-import { NotarizeButton } from "@/lib/ethereum/NotarizeButton";
 import {
   ShieldCheck,
   ShieldAlert,
@@ -96,7 +95,7 @@ function DocumentDetailsPage() {
   const [copied, setCopied] = useState(false);
   const [copiedSig, setCopiedSig] = useState(false);
   const [copiedText, setCopiedText] = useState(false);
-  const [activeTab, setActiveTab] = useState<"ocr" | "history" | "timeline" | "sharing" | "blockchain">("ocr");
+  const [activeTab, setActiveTab] = useState<"ocr" | "history" | "timeline" | "sharing">("ocr");
   const [ocrSearch, setOcrSearch] = useState("");
   const [ocrLangSelection, setOcrLangSelection] = useState("eng");
   const [showCertificate, setShowCertificate] = useState(false);
@@ -737,17 +736,6 @@ function DocumentDetailsPage() {
             >
               Access Sharing
             </button>
-            <button
-              onClick={() => setActiveTab("blockchain")}
-              className={`px-4 py-2 font-mono text-xs font-bold uppercase tracking-wider border-b-2 cursor-pointer flex items-center gap-1.5 ${
-                activeTab === "blockchain"
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <Cpu className="size-3.5" />
-              Blockchain
-            </button>
           </div>
 
           {activeTab === "ocr" ? (
@@ -1077,49 +1065,8 @@ function DocumentDetailsPage() {
                 </ol>
               )}
             </Panel>
-          ) : activeTab === "sharing" ? (
-            <SharePanel documentId={doc.id} />
           ) : (
-            <Panel className="p-5 space-y-4">
-              <div className="flex items-center justify-between border-b border-border pb-3">
-                <Label>Blockchain Ledger &amp; Ethereum Anchors</Label>
-                <Link
-                  to="/blockchain"
-                  className="inline-flex items-center gap-1 text-[10px] font-mono font-bold uppercase tracking-wider text-primary hover:underline"
-                >
-                  View Full Ledger <ExternalLink className="size-3" />
-                </Link>
-              </div>
-
-              {/* Ethereum notarize button */}
-              <div>
-                <div className="mb-2 font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                  Ethereum Notarization
-                </div>
-                <NotarizeButton
-                  sha256Hash={current?.hash ?? ""}
-                  documentId={doc.id}
-                  documentName={doc.name}
-                />
-              </div>
-
-              {/* Local ledger link */}
-              <div className="rounded-sm border border-border bg-muted/20 p-4">
-                <div className="flex flex-col items-center justify-center gap-3 py-2 text-center">
-                  <Cpu className="size-6 text-muted-foreground/40" />
-                  <div className="text-xs font-semibold text-foreground">Local SHA-256 Ledger</div>
-                  <p className="text-[10px] text-muted-foreground max-w-sm">
-                    This document's cryptographic hashes and integrity events are also anchored to the local SHA-256 ledger.
-                  </p>
-                  <Link
-                    to="/blockchain"
-                    className="mt-1 rounded-sm bg-primary px-4 py-2 font-mono text-[10px] font-bold uppercase tracking-wider text-primary-foreground hover:opacity-90"
-                  >
-                    Verify on Ledger Explorer
-                  </Link>
-                </div>
-              </div>
-            </Panel>
+            <SharePanel documentId={doc.id} />
           )}
         </div>
 
