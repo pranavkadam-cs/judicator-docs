@@ -1,5 +1,5 @@
 {
-  "version": 37,
+  "version": 43,
   "users": [
     {
       "id": "usr-admin-001",
@@ -231,7 +231,7 @@
           "cloud_project": "324957553228",
           "ocr_status": "NOT_REQUIRED",
           "ocr_text": "",
-          "ocr_processed_at": "2026-09-26T12:24:45.141Z",
+          "ocr_processed_at": "2026-09-27T18:20:29.038Z",
           "blockchain_tx_id": "64197dbfc875550cd54cb63c746cb1bb56f911f7176feddefaafdc2a669123b3",
           "blockchain_block": 33,
           "signedAt": "2026-09-26T12:24:54.332Z",
@@ -261,7 +261,7 @@
       "ocr_status": "NOT_REQUIRED",
       "ocr_text": "",
       "ocr_language": "eng",
-      "ocr_processed_at": "2026-09-26T12:24:45.141Z",
+      "ocr_processed_at": "2026-09-27T18:20:29.038Z",
       "ocr_engine": "None",
       "ocr_page_count": 0,
       "ocr_source": "NOT_REQUIRED"
@@ -1026,6 +1026,54 @@
     }
   ],
   "audit": [
+    {
+      "id": "aud-muk595nyps5fv",
+      "at": "2026-09-27T18:20:29.038Z",
+      "actor": "S. Rao",
+      "actorId": "usr-admin-001",
+      "role": "ADMIN",
+      "action": "OCR_COMPLETED",
+      "target": "DSV_MissingData_PR1.2",
+      "targetId": "doc-muid3txxqxnjk",
+      "detail": "On-demand OCR completed via None (0 chars).",
+      "hash": "83143401fc71b564d9746b5c1a0f3cc13a5b260eaed64f159e62e83b9bc6433f",
+      "expectedHash": null,
+      "computedHash": null,
+      "actionTaken": "OCR_COMPLETED",
+      "ipAddress": null
+    },
+    {
+      "id": "aud-muk58tbr4foit",
+      "at": "2026-09-27T18:20:13.047Z",
+      "actor": "S. Rao",
+      "actorId": "usr-admin-001",
+      "role": "ADMIN",
+      "action": "OCR_COMPLETED",
+      "target": "DSV_MissingData_PR1.2",
+      "targetId": "doc-muid3txxqxnjk",
+      "detail": "On-demand OCR completed via None (0 chars).",
+      "hash": "83143401fc71b564d9746b5c1a0f3cc13a5b260eaed64f159e62e83b9bc6433f",
+      "expectedHash": null,
+      "computedHash": null,
+      "actionTaken": "OCR_COMPLETED",
+      "ipAddress": null
+    },
+    {
+      "id": "aud-muk58qjjl3456",
+      "at": "2026-09-27T18:20:09.439Z",
+      "actor": "S. Rao",
+      "actorId": "usr-admin-001",
+      "role": "ADMIN",
+      "action": "OCR_COMPLETED",
+      "target": "DSV_MissingData_PR1.2",
+      "targetId": "doc-muid3txxqxnjk",
+      "detail": "On-demand OCR completed via None (0 chars).",
+      "hash": "83143401fc71b564d9746b5c1a0f3cc13a5b260eaed64f159e62e83b9bc6433f",
+      "expectedHash": null,
+      "computedHash": null,
+      "actionTaken": "OCR_COMPLETED",
+      "ipAddress": null
+    },
     {
       "id": "aud-muk4kp07d2ij",
       "at": "2026-09-27T18:01:27.703Z",
