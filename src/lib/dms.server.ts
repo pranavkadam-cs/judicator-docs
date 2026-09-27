@@ -54,7 +54,13 @@ import {
   anchorSignatureEvent,
   anchorTamperEvent,
   anchorIntegrityVerification,
+  anchorToBlockchain,
 } from "./blockchain.server";
+import {
+  createDigitalSignature,
+  verifyDigitalSignature,
+  verifySignatureBySigner,
+} from "./digital-signature.server";
 
 
 function id(prefix: string) {
@@ -578,7 +584,14 @@ export async function registerDocument(input: {
   // ── Blockchain: Anchor document hash (fire-and-forget, non-blocking) ──
   anchorDocumentHash({
     documentId: doc.id,
+    refId: doc.refId,
     documentName: doc.name,
+    category: doc.category,
+    classification: doc.classification,
+    status: doc.status,
+    version: doc.currentVersion,
+    fileSize: finalSize,
+    mimeType: input.mimeType,
     sha256Hash: authoritativeHash,
     ocrStatus: ocrResult.status,
     actorId: input.actor.id,
@@ -664,6 +677,22 @@ export async function advanceWorkflow(input: {
     doc.id,
     `Status changed from ${from} to ${input.newStatus}. ${input.comment}`.trim(),
   );
+
+  anchorToBlockchain({
+    eventType: "DOCUMENT_METADATA_UPDATED",
+    documentId: doc.id,
+    refId: doc.refId,
+    documentName: doc.name,
+    category: doc.category,
+    classification: doc.classification,
+    status: input.newStatus,
+    version: doc.currentVersion,
+    sha256Hash: doc.versions[0]?.hash || "",
+    actorId: input.actor.id,
+    actorName: input.actor.name,
+    actorRole: input.actor.role,
+    caseId: doc.caseId,
+  }).catch(() => null);
 
   // Notify document creator
   if (doc.createdById !== input.actor.id) {
@@ -790,7 +819,14 @@ export async function downloadDocumentWithIntegrity(input: {
     // ── Blockchain: Anchor tamper detection event (fire-and-forget) ──
     anchorTamperEvent({
       documentId: doc.id,
+      refId: doc.refId,
       documentName: doc.name,
+      category: doc.category,
+      classification: doc.classification,
+      status: doc.status,
+      version: v.version,
+      fileSize: v.size,
+      mimeType: v.mimeType,
       sha256Hash: computedHash,
       actorId: input.actor.id,
       actorName: input.actor.name,
@@ -1137,29 +1173,82 @@ export async function signDocument(input: {
       `${ROLE_PROFILE[input.actor.role].label} has no signing authority.`,
     );
   }
-  const v = doc.versions.find(
-    (x) => x.version === doc.currentVersion,
-  )!;
-  v.signature = `SIG-${v.hash.slice(0, 12).toUpperCase()}-${input.actor.badge}`;
+
+  const v = doc.versions.find((x) => x.version === doc.currentVersion)!;
+  if (!v) throw new Error("Current version not found.");
+  if (v.signature) throw new Error("This version has already been signed.");
+
+  const sha256Hash = v.sha256_hash || v.hash;
+  if (!sha256Hash || sha256Hash.length !== 64) {
+    throw new Error("Document has no valid SHA-256 hash to sign.");
+  }
+
+  // ── RSA-SHA256 Digital Signature ──────────────────────────
+  // Creates a real cryptographic signature over the document's SHA-256 hash
+  // using the signer's RSA-2048 private key.
+  const sigResult = createDigitalSignature(
+    sha256Hash,
+    input.actor.id,
+    input.actor.name,
+    input.actor.badge,
+    input.actor.role,
+  );
+
+  const now = new Date().toISOString();
+
+  // Store the complete RSA-SHA256 digital signature on the version
+  v.signature = sigResult.signatureId;           // Human-readable ID (for display)
   v.signedBy = input.actor.name;
+  v.signedAt = now;
+  v.signatureBase64 = sigResult.signatureBase64; // Full RSA signature (Base64)
+  v.signatureHex = sigResult.signatureHex;       // Full RSA signature (Hex)
+  v.signatureId = sigResult.signatureId;
+  v.signatureAlgorithm = "RSA-SHA256";
+  v.signatureKeySize = 2048;
+  v.publicKeyPem = sigResult.publicKeyPem;       // Signer's public key for verification
+  v.publicKeyFingerprint = sigResult.publicKeyFingerprint;
+  v.signedHash = sha256Hash;                     // Hash that was signed
+  v.signerBadge = sigResult.signerBadge;
+  v.signerRole = sigResult.signerRole;
+  v.signatureVerified = sigResult.verifiedOnCreate;
+
   doc.status = "SIGNED";
-  doc.updatedAt = new Date().toISOString();
+  doc.updatedAt = now;
+
   record(
     reg,
     input.actor,
     "DOCUMENT_SIGNED",
     doc.name,
     doc.id,
-    `Digitally signed ${v.version}.`,
-    v.hash,
+    `RSA-SHA256 digital signature applied to ${v.version} by ${input.actor.name} (${input.actor.badge}). ` +
+    `Signature: ${sigResult.signatureId}. ` +
+    `Key fingerprint: ${sigResult.publicKeyFingerprint.slice(0, 23)}...`,
+    sha256Hash,
   );
+
   await saveRegistry(reg);
 
   // ── Blockchain: Anchor signature event (fire-and-forget) ──
   anchorSignatureEvent({
     documentId: doc.id,
+    refId: doc.refId,
     documentName: doc.name,
-    sha256Hash: v.hash,
+    category: doc.category,
+    classification: doc.classification,
+    status: doc.status,
+    version: v.version,
+    fileSize: v.size,
+    mimeType: v.mimeType,
+    sha256Hash: sha256Hash,
+    digitalSignature: {
+      signatureHex: sigResult.signatureHex,
+      signerId: input.actor.id,
+      signerName: input.actor.name,
+      signerRole: input.actor.role,
+      algorithm: sigResult.algorithm,
+      signedAt: now,
+    },
     actorId: input.actor.id,
     actorName: input.actor.name,
     actorRole: input.actor.role,
@@ -1177,7 +1266,7 @@ export async function signDocument(input: {
           action: "BLOCKCHAIN_ANCHORED" as const,
           target: doc.name,
           targetId: doc.id,
-          detail: `Digital signature anchored to ${bcResult.simulated ? "simulation ledger" : "Hyperledger Fabric"} at block #${bcResult.blockIndex} (tx: ${bcResult.txId.slice(0, 12)}...).`,
+          detail: `RSA-SHA256 digital signature anchored to ${bcResult.simulated ? "simulation ledger" : "Hyperledger Fabric"} at block #${bcResult.blockIndex} (tx: ${bcResult.txId.slice(0, 12)}...).`,
           hash: v.hash,
           blockchain_tx_id: bcResult.txId,
           blockchain_block: bcResult.blockIndex,
@@ -1190,7 +1279,81 @@ export async function signDocument(input: {
     }
   }).catch(() => {});
 
-  return doc;
+  return { document: doc, signatureResult: sigResult };
+}
+
+// ── Signature Verification ────────────────────────────────
+
+export async function verifyDocumentSignature(input: {
+  actor: Actor;
+  documentId: string;
+  version?: string | undefined;
+}) {
+  const reg = await loadRegistry();
+  const doc = reg.documents.find((d) => d.id === input.documentId);
+  if (!doc) throw new Error("Record not found in the archive.");
+
+  const v = doc.versions.find(
+    (x) => x.version === (input.version ?? doc.currentVersion),
+  );
+  if (!v) throw new Error("Requested revision not found.");
+
+  if (!v.signature || !v.signatureBase64) {
+    return {
+      valid: false,
+      reason: "This document version has not been digitally signed.",
+      version: v.version,
+      signatureId: null,
+      algorithm: null,
+      signerName: v.signedBy,
+      signedAt: v.signedAt,
+      publicKeyFingerprint: null,
+      verifiedAt: new Date().toISOString(),
+    };
+  }
+
+  // Verify RSA-SHA256 signature using the stored public key
+  const verificationResult = v.publicKeyPem
+    ? verifyDigitalSignature(
+        v.signedHash || v.sha256_hash || v.hash,
+        v.signatureBase64,
+        v.publicKeyPem,
+      )
+    : verifySignatureBySigner(
+        v.signedHash || v.sha256_hash || v.hash,
+        v.signatureBase64,
+        (v as any).signerId || input.actor.id, // fallback
+      );
+
+  // Record the verification event in audit trail
+  record(
+    reg,
+    input.actor,
+    verificationResult.valid ? "SIGNATURE_VERIFIED" : "SIGNATURE_VERIFICATION_FAILED",
+    doc.name,
+    doc.id,
+    verificationResult.valid
+      ? `RSA-SHA256 signature verified for ${v.version} (signed by ${v.signedBy}). Key fingerprint: ${verificationResult.publicKeyFingerprint?.slice(0, 23)}...`
+      : `RSA-SHA256 signature verification FAILED for ${v.version}: ${verificationResult.failureReason}`,
+    v.sha256_hash || v.hash,
+  );
+
+  await saveRegistry(reg);
+
+  return {
+    valid: verificationResult.valid,
+    reason: verificationResult.failureReason,
+    version: v.version,
+    signatureId: v.signatureId,
+    algorithm: verificationResult.algorithm,
+    signerName: v.signedBy,
+    signerBadge: v.signerBadge,
+    signerRole: v.signerRole,
+    signedAt: v.signedAt,
+    signedHash: v.signedHash,
+    publicKeyFingerprint: verificationResult.publicKeyFingerprint,
+    verifiedAt: verificationResult.verifiedAt,
+  };
 }
 
 // ── Classification ───────────────────────────────────────────
@@ -1620,5 +1783,188 @@ export async function getDocumentOCRStatus(input: {
     ocrError: doc.ocr_error || null,
     sha256: currentVersion?.hash || "",
   };
+}
+
+// ── Bulk Integrity Verification ──────────────────────────────
+
+export async function bulkVerifyIntegrity(input: { actor: Actor }) {
+  const reg = await loadRegistry();
+  assertClearance(input.actor, "PUBLIC");
+
+  const results: Array<{
+    documentId: string;
+    name: string;
+    refId: string;
+    status: "VERIFIED" | "TAMPERED" | "SKIPPED" | "ERROR";
+    hash: string;
+    computedHash?: string;
+    error?: string;
+  }> = [];
+
+  let verified = 0;
+  let tampered = 0;
+  let skipped = 0;
+
+  for (const doc of reg.documents) {
+    const currentVersion =
+      doc.versions.find((v) => v.version === doc.currentVersion) ??
+      doc.versions[0];
+
+    if (!currentVersion?.hash || !currentVersion?.objectKey) {
+      results.push({
+        documentId: doc.id,
+        name: doc.name,
+        refId: doc.refId,
+        status: "SKIPPED",
+        hash: currentVersion?.hash || "",
+      });
+      skipped++;
+      continue;
+    }
+
+    try {
+      const fileBytes = await retrieveFileBytes(currentVersion.objectKey);
+      if (!fileBytes) {
+        results.push({
+          documentId: doc.id,
+          name: doc.name,
+          refId: doc.refId,
+          status: "SKIPPED",
+          hash: currentVersion.hash,
+          error: "File not found on disk",
+        });
+        skipped++;
+        continue;
+      }
+
+      const computedHash = computeSha256(fileBytes);
+      const match = safeCompareHashes(currentVersion.hash, computedHash);
+
+      if (match) {
+        verified++;
+        results.push({
+          documentId: doc.id,
+          name: doc.name,
+          refId: doc.refId,
+          status: "VERIFIED",
+          hash: currentVersion.hash,
+          computedHash,
+        });
+      } else {
+        tampered++;
+        results.push({
+          documentId: doc.id,
+          name: doc.name,
+          refId: doc.refId,
+          status: "TAMPERED",
+          hash: currentVersion.hash,
+          computedHash,
+        });
+      }
+    } catch (err: any) {
+      results.push({
+        documentId: doc.id,
+        name: doc.name,
+        refId: doc.refId,
+        status: "SKIPPED",
+        hash: currentVersion.hash,
+        error: err.message || "Verification failed",
+      });
+      skipped++;
+    }
+  }
+
+  record(
+    reg,
+    input.actor,
+    "INTEGRITY_VERIFIED",
+    "Bulk Verification",
+    "system",
+    `Bulk integrity scan: ${verified} verified, ${tampered} tampered, ${skipped} skipped out of ${reg.documents.length} documents.`,
+  );
+  await saveRegistry(reg);
+
+  return {
+    total: reg.documents.length,
+    verified,
+    tampered,
+    skipped,
+    results,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+// ── Full-Text Search Across Documents & OCR ──────────────────
+
+export async function searchDocuments(input: {
+  actor: Actor;
+  query: string;
+  limit?: number;
+}) {
+  const reg = await loadRegistry();
+  const q = input.query.toLowerCase().trim();
+  if (!q) return { results: [], total: 0 };
+
+  const limit = input.limit || 50;
+  const actorClearance = ROLE_PROFILE[input.actor.role].clearance;
+
+  const results: Array<{
+    documentId: string;
+    name: string;
+    refId: string;
+    caseId: string;
+    category: string;
+    classification: string;
+    status: string;
+    matchType: "name" | "tag" | "ocr" | "category" | "refId";
+    ocrSnippet?: string;
+    hash: string;
+  }> = [];
+
+  for (const doc of reg.documents) {
+    if (CLEARANCE[doc.classification] > actorClearance) continue;
+    if (results.length >= limit) break;
+
+    const currentVersion =
+      doc.versions.find((v) => v.version === doc.currentVersion) ??
+      doc.versions[0];
+
+    let matchType: "name" | "tag" | "ocr" | "category" | "refId" | null = null;
+    let ocrSnippet: string | undefined;
+
+    if (doc.name.toLowerCase().includes(q)) {
+      matchType = "name";
+    } else if (doc.refId.toLowerCase().includes(q)) {
+      matchType = "refId";
+    } else if (doc.category.toLowerCase().includes(q)) {
+      matchType = "category";
+    } else if (doc.tags.some((t) => t.toLowerCase().includes(q))) {
+      matchType = "tag";
+    } else if (doc.ocr_text && doc.ocr_text.toLowerCase().includes(q)) {
+      matchType = "ocr";
+      // Extract snippet around the match
+      const idx = doc.ocr_text.toLowerCase().indexOf(q);
+      const start = Math.max(0, idx - 60);
+      const end = Math.min(doc.ocr_text.length, idx + q.length + 60);
+      ocrSnippet = (start > 0 ? "…" : "") + doc.ocr_text.slice(start, end) + (end < doc.ocr_text.length ? "…" : "");
+    }
+
+    if (matchType) {
+      results.push({
+        documentId: doc.id,
+        name: doc.name,
+        refId: doc.refId,
+        caseId: doc.caseId,
+        category: doc.category,
+        classification: doc.classification,
+        status: doc.status,
+        matchType,
+        ...(ocrSnippet ? { ocrSnippet } : {}),
+        hash: currentVersion?.hash || "",
+      });
+    }
+  }
+
+  return { results, total: results.length };
 }
 

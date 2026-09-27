@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Vigil.OS — WalletButton
  * MetaMask connect / disconnect button with wallet state display.
  * Uses wagmi hooks — must be inside <WagmiProvider>.
@@ -24,13 +24,41 @@ function formatEth(value: bigint, decimals: number = 18): string {
 
 export function WalletButton({ className }: { className?: string }) {
   const { address, isConnected, isConnecting } = useAccount();
-  const { connect, error: connectError } = useConnect();
+  const { connect, connectors, error: connectError } = useConnect();
   const { disconnect } = useDisconnect();
 
   const { data: balance } = useBalance({
     address,
     query: { enabled: isConnected && Boolean(address) },
   });
+
+  async function handleConnect() {
+    const mmConnector =
+      connectors.find((c) => c.id === "metaMask") ||
+      connectors.find((c) => c.id === "injected") ||
+      connectors[0];
+
+    if (mmConnector) {
+      try {
+        connect({ connector: mmConnector });
+        return;
+      } catch (err) {
+        console.warn("Wagmi connect failed, attempting direct window.ethereum request", err);
+      }
+    }
+
+    const eth = typeof window !== "undefined" ? (window as any).ethereum : undefined;
+    if (eth) {
+      try {
+        await eth.request({ method: "eth_requestAccounts" });
+        if (mmConnector) connect({ connector: mmConnector });
+      } catch (err: any) {
+        console.error("Direct ethereum account request failed:", err);
+      }
+    } else {
+      window.open("https://metamask.io/download/", "_blank");
+    }
+  }
 
   if (isConnecting) {
     return (
@@ -46,7 +74,7 @@ export function WalletButton({ className }: { className?: string }) {
       <div className={cn("flex flex-col gap-1.5", className)}>
         <button
           id="metamask-connect-btn"
-          onClick={() => connect({ connector: metaMask() })}
+          onClick={() => void handleConnect()}
           className="flex items-center gap-2 rounded-sm border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-400 hover:bg-amber-500/20 transition-colors cursor-pointer"
         >
           <Wallet className="size-3.5" />

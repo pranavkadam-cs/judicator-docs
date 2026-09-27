@@ -1,6 +1,9 @@
 import { useState, useMemo } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
 import { AppShell } from "@/components/dms/shell";
+import { useActor } from "@/components/dms/actor";
 import {
   EmptyState,
   Label,
@@ -12,9 +15,11 @@ import {
   ClassificationTag,
   formatDate,
   useSnapshot,
+  useRefreshSnapshot,
 } from "@/components/dms/primitives";
+import { bulkVerifyIntegrityFn } from "@/lib/dms.functions";
 import { shortHash } from "@/lib/dms-types";
-import { Search, Download, ShieldAlert, ShieldCheck, Calendar, Activity, Database, CheckCircle2, AlertTriangle, Eye } from "lucide-react";
+import { Search, Download, ShieldAlert, ShieldCheck, Calendar, Activity, Database, CheckCircle2, AlertTriangle, Eye, RefreshCw, X, Key, BadgeCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/audit")({
@@ -22,7 +27,13 @@ export const Route = createFileRoute("/audit")({
 });
 
 function AuditPage() {
+  const { actor } = useActor();
   const { data, isPending } = useSnapshot();
+  const refresh = useRefreshSnapshot();
+  const bulkVerify = useServerFn(bulkVerifyIntegrityFn);
+
+  const [verifyingAll, setVerifyingAll] = useState(false);
+  const [bulkResult, setBulkResult] = useState<any>(null);
 
   const [activeTab, setActiveTab] = useState<"logs" | "integrity">("integrity");
   const [query, setQuery] = useState("");
@@ -44,6 +55,8 @@ function AuditPage() {
     const verifiedFiles = documents.filter((d) => d.status !== "TAMPER_ALERT").length;
     const integrityFailures = (data?.audit || []).filter((e) => e.action === "INTEGRITY_FAILED").length;
     const verifiedEvents = (data?.audit || []).filter((e) => e.action === "INTEGRITY_VERIFIED").length;
+    const signedDocs = documents.filter((d) => d.status === "SIGNED" || d.versions?.some((v) => !!(v as any).signatureBase64)).length;
+    const sigVerifyEvents = (data?.audit || []).filter((e) => e.action === "SIGNATURE_VERIFIED" || e.action === "DOCUMENT_SIGNED").length;
 
     return {
       totalFiles,
@@ -51,6 +64,8 @@ function AuditPage() {
       tamperAlerts,
       integrityFailures,
       verifiedEvents,
+      signedDocs,
+      sigVerifyEvents,
     };
   }, [data]);
 
@@ -169,22 +184,101 @@ function AuditPage() {
     document.body.removeChild(link);
   }
 
+  async function handleBulkVerify() {
+    if (!actor) {
+      toast.error("Active officer credentials required to execute bulk audit.");
+      return;
+    }
+    setVerifyingAll(true);
+    try {
+      const res = await bulkVerify({
+        data: { actor },
+      });
+      setBulkResult(res);
+      await refresh();
+      if (res.tampered > 0) {
+        toast.error(`Audit Complete: ${res.verified} verified, ${res.tampered} TAMPER ALERTS detected!`, { duration: 6000 });
+      } else {
+        toast.success(`Integrity Audit Complete: All ${res.verified} files verified cryptographically intact!`, { duration: 5000 });
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Failed to execute bulk integrity verification.");
+    } finally {
+      setVerifyingAll(false);
+    }
+  }
+
   return (
     <AppShell
       title="Security & Integrity Audit"
       subtitle="Chain of Custody & SHA-256 Verification Center"
       actions={
-        filteredAudit.length > 0 && (
+        <div className="flex items-center gap-2">
           <button
-            onClick={exportCSV}
-            className="flex items-center gap-1.5 rounded-sm bg-primary px-4 py-2 font-mono text-[11px] font-bold uppercase tracking-wider text-primary-foreground hover:opacity-90 cursor-pointer"
+            onClick={handleBulkVerify}
+            disabled={verifyingAll}
+            className="flex items-center gap-1.5 rounded-sm border border-seal/60 bg-seal/10 px-4 py-2 font-mono text-[11px] font-bold uppercase tracking-wider text-seal hover:bg-seal/20 disabled:opacity-50 cursor-pointer transition-colors"
+            title="Compute and verify SHA-256 digests for all files across disk/cloud storage"
           >
-            <Download className="size-3.5" /> Export Ledger CSV
+            <ShieldCheck className={cn("size-3.5", verifyingAll && "animate-spin")} />
+            {verifyingAll ? "Auditing Vault…" : "Run Full Integrity Audit"}
           </button>
-        )
+          {filteredAudit.length > 0 && (
+            <button
+              onClick={exportCSV}
+              className="flex items-center gap-1.5 rounded-sm bg-primary px-4 py-2 font-mono text-[11px] font-bold uppercase tracking-wider text-primary-foreground hover:opacity-90 cursor-pointer"
+            >
+              <Download className="size-3.5" /> Export Ledger CSV
+            </button>
+          )}
+        </div>
       }
     >
       <div className="space-y-6">
+        {/* Bulk Scan Results Banner */}
+        {bulkResult && (
+          <div className="rounded-sm border border-border bg-surface p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="size-4 text-seal" />
+                <span className="font-mono text-xs font-bold uppercase tracking-wider text-foreground">
+                  Vault Integrity Audit Results
+                </span>
+                <span className="font-mono text-[10px] text-muted-foreground">
+                  ({bulkResult.total} scanned)
+                </span>
+              </div>
+              <button
+                onClick={() => setBulkResult(null)}
+                className="text-muted-foreground hover:text-foreground cursor-pointer"
+              >
+                <X className="size-3.5" />
+              </button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-4 font-mono text-xs">
+              <div className="rounded-xs bg-background p-2.5 border border-border">
+                <div className="text-[10px] text-muted-foreground uppercase">Verified Intact</div>
+                <div className="text-lg font-bold text-seal">{bulkResult.verified}</div>
+              </div>
+              <div className="rounded-xs bg-background p-2.5 border border-border">
+                <div className="text-[10px] text-muted-foreground uppercase">Tamper Alerts</div>
+                <div className={cn("text-lg font-bold", bulkResult.tampered > 0 ? "text-destructive" : "text-foreground")}>
+                  {bulkResult.tampered}
+                </div>
+              </div>
+              <div className="rounded-xs bg-background p-2.5 border border-border">
+                <div className="text-[10px] text-muted-foreground uppercase">Skipped / Pending</div>
+                <div className="text-lg font-bold text-muted-foreground">{bulkResult.skipped}</div>
+              </div>
+              <div className="rounded-xs bg-background p-2.5 border border-border">
+                <div className="text-[10px] text-muted-foreground uppercase">Storage Integrity</div>
+                <div className="text-lg font-bold text-primary">
+                  {bulkResult.total > 0 ? `${Math.round((bulkResult.verified / bulkResult.total) * 100)}%` : "100%"}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         {/* Real-time Statistics Cards */}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <Panel className="p-4">
@@ -213,6 +307,16 @@ function AuditPage() {
             <Label>Integrity Failures Logged</Label>
             <div className="mt-2 font-mono text-2xl font-bold tabular-nums text-destructive">{stats.integrityFailures}</div>
             <p className="mt-1 text-[11px] text-muted-foreground">Blocked download attempts</p>
+          </Panel>
+          <Panel className="p-4 border-seal/30 bg-seal/5">
+            <Label className="text-seal">RSA-SHA256 Signed Docs</Label>
+            <div className="mt-2 font-mono text-2xl font-bold tabular-nums text-seal">{stats.signedDocs}</div>
+            <p className="mt-1 text-[11px] text-muted-foreground">Cryptographically signed</p>
+          </Panel>
+          <Panel className="p-4">
+            <Label>Signature Events</Label>
+            <div className="mt-2 font-mono text-2xl font-bold tabular-nums text-primary">{stats.sigVerifyEvents}</div>
+            <p className="mt-1 text-[11px] text-muted-foreground">Sign + verification operations</p>
           </Panel>
         </div>
 
@@ -324,6 +428,9 @@ function AuditPage() {
                       <th className="p-4 font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                         Integrity Status
                       </th>
+                      <th className="p-4 font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        Digital Signature
+                      </th>
                       <th className="p-4"></th>
                     </tr>
                   </thead>
@@ -362,6 +469,19 @@ function AuditPage() {
                         <td className="p-4">
                           <IntegrityBadge status={item.integrityStatus} />
                         </td>
+                        <td className="p-4">
+                          {(() => {
+                            const doc = data?.documents?.find(d => d.id === item.documentId);
+                            const v = doc?.versions?.find(v2 => v2.version === item.version);
+                            return (v as any)?.signatureBase64 ? (
+                              <span className="flex items-center gap-1 font-mono text-[10px] font-bold text-seal">
+                                <BadgeCheck className="size-3" /> RSA-SHA256
+                              </span>
+                            ) : (
+                              <span className="font-mono text-[10px] text-muted-foreground">Unsigned</span>
+                            );
+                          })()}
+                        </td>
                         <td className="p-4 text-right">
                           <Link
                             to="/documents/$docId"
@@ -387,14 +507,16 @@ function AuditPage() {
               <ol className="divide-y divide-border">
                 {filteredAudit.map((event) => {
                   const isFail = event.action.includes("FAILED") || event.action.includes("DENIED");
-                  const isVerify = event.action.includes("VERIFIED");
+                  const isVerify = event.action.includes("VERIFIED") || event.action === "DOCUMENT_SIGNED";
+                  const isSig = event.action === "DOCUMENT_SIGNED" || event.action.includes("SIGNATURE");
                   return (
                     <li
                       key={event.id}
                       className={cn(
                         "grid gap-4 p-4 sm:grid-cols-[180px_1fr_200px] hover:bg-accent/20 transition-colors",
                         isFail && "bg-destructive/10",
-                        isVerify && "bg-seal/5",
+                        isSig && !isFail && "bg-seal/5",
+                        !isSig && isVerify && !isFail && "bg-seal/5",
                       )}
                     >
                       <div className="font-mono text-xs text-muted-foreground">
@@ -404,10 +526,21 @@ function AuditPage() {
                         <div className="flex items-center gap-2">
                           {isFail ? (
                             <ShieldAlert className="size-3.5 text-destructive animate-pulse" />
+                          ) : event.action === "DOCUMENT_SIGNED" ? (
+                            <Key className="size-3.5 text-seal" />
+                          ) : event.action === "SIGNATURE_VERIFIED" ? (
+                            <BadgeCheck className="size-3.5 text-seal" />
+                          ) : event.action === "SIGNATURE_VERIFICATION_FAILED" ? (
+                            <BadgeCheck className="size-3.5 text-destructive" />
                           ) : isVerify ? (
                             <ShieldCheck className="size-3.5 text-seal" />
                           ) : null}
-                          <Label className={isFail ? "text-destructive font-bold" : isVerify ? "text-seal" : ""}>
+                          <Label className={
+                            isFail ? "text-destructive font-bold"
+                            : event.action === "DOCUMENT_SIGNED" || event.action === "SIGNATURE_VERIFIED" ? "text-seal font-bold"
+                            : event.action === "SIGNATURE_VERIFICATION_FAILED" ? "text-destructive font-bold"
+                            : isVerify ? "text-seal" : ""
+                          }>
                             {event.action.replace(/_/g, " ")}
                           </Label>
                         </div>

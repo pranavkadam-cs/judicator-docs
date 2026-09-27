@@ -20,6 +20,10 @@ import {
   Search,
   ExternalLink,
   Copy,
+  Eye,
+  X,
+  Key,
+  BadgeCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WalletButton } from "@/lib/ethereum/WalletButton";
@@ -60,10 +64,57 @@ function ChainBadge({ valid }: { valid: boolean }) {
   );
 }
 
+function SetupStep({ step, title, status, detail }: { step: number; title: string; status: "done" | "pending"; detail: string }) {
+  return (
+    <div className={cn(
+      "rounded-sm border p-3 space-y-1 transition-colors",
+      status === "done" ? "border-green-500/30 bg-green-500/5" : "border-border bg-surface"
+    )}>
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-[10px] font-bold text-muted-foreground uppercase">Step {step}</span>
+        {status === "done" ? (
+          <CheckCircle2 className="size-3.5 text-green-400" />
+        ) : (
+          <span className="size-3.5 rounded-full border-2 border-muted-foreground/30" />
+        )}
+      </div>
+      <div className="text-xs font-bold text-foreground">{title}</div>
+      <div className={cn("text-[10px] font-mono", status === "done" ? "text-green-400" : "text-muted-foreground")}>{detail}</div>
+    </div>
+  );
+}
+
+function StepInstruction({ step, title, done, children }: { step: number; title: string; done: boolean; children: React.ReactNode }) {
+  return (
+    <div className={cn("rounded-sm border p-3 space-y-2", done ? "border-green-500/20 bg-green-500/5" : "border-border")}>
+      <div className="flex items-center gap-2">
+        {done ? (
+          <CheckCircle2 className="size-4 text-green-400 shrink-0" />
+        ) : (
+          <span className="flex size-4 items-center justify-center rounded-full border border-primary text-[9px] font-bold text-primary shrink-0">{step}</span>
+        )}
+        <span className={cn("text-xs font-bold", done ? "text-green-400" : "text-foreground")}>{title}</span>
+        {done && <span className="text-[9px] font-mono text-green-400 font-bold uppercase ml-auto">Complete</span>}
+      </div>
+      {!done && <div className="pl-6">{children}</div>}
+    </div>
+  );
+}
+
+function EnvRow({ label, value, ok }: { label: string; value: string; ok: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={cn("font-bold", ok ? "text-green-400" : "text-caution")}>{value}</span>
+    </div>
+  );
+}
+
 function BlockchainPage() {
   const [verifiedTxs, setVerifiedTxs] = useState<Record<string, boolean>>({});
   const [verifyingTx, setVerifyingTx] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedTx, setSelectedTx] = useState<any | null>(null);
 
   const { isConnected } = useAccount();
   const { total: onChainCount } = useTotalNotarized();
@@ -256,6 +307,152 @@ function BlockchainPage() {
           </div>
         </Panel>
 
+        {/* Alchemy Integration Setup Guide */}
+        <Panel className="p-5 space-y-4">
+          <div className="flex items-center gap-2 border-b border-border pb-3">
+            <Cpu className="size-4 text-primary" />
+            <Label>Alchemy Blockchain Integration — End-to-End Setup</Label>
+          </div>
+
+          <div className="space-y-4">
+            {/* Status Overview */}
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <SetupStep
+                step={1}
+                title="Ethereum RPC"
+                status="done"
+                detail={import.meta.env["VITE_ALCHEMY_RPC_URL"] ? "Alchemy Sepolia RPC" : "Sepolia Public RPC Active"}
+              />
+              <SetupStep
+                step={2}
+                title="MetaMask Wallet"
+                status={isConnected ? "done" : "pending"}
+                detail={isConnected ? "Wallet connected" : "Connect wallet above"}
+              />
+              <SetupStep
+                step={3}
+                title="Contract Deployed"
+                status={isConfigured && CONTRACT_ADDRESS !== "0x0000000000000000000000000000000000000000" ? "done" : "pending"}
+                detail={isConfigured ? `${CONTRACT_ADDRESS.slice(0, 8)}…` : "Deploy with button above"}
+              />
+              <SetupStep
+                step={4}
+                title="Documents Notarized"
+                status={onChainCount > 0 ? "done" : "pending"}
+                detail={onChainCount > 0 ? `${onChainCount} on-chain` : "Notarize from document page"}
+              />
+            </div>
+
+            {/* Step-by-step instructions */}
+            <div className="rounded-sm border border-border bg-background p-4 space-y-4">
+              <div className="font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                Complete Setup Instructions
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <StepInstruction
+                  step={1}
+                  title="Create Alchemy Account & Get API Key"
+                  done={Boolean(import.meta.env["VITE_ALCHEMY_RPC_URL"])}
+                >
+                  <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+                    <li>Go to <a href="https://dashboard.alchemy.com/signup" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-0.5">dashboard.alchemy.com <ExternalLink className="size-2.5" /></a></li>
+                    <li>Create a free account and create a new <strong className="text-foreground">Ethereum App</strong></li>
+                    <li>Select <strong className="text-foreground">Sepolia</strong> as the network</li>
+                    <li>Copy the <strong className="text-foreground">HTTPS</strong> URL (e.g., <code className="bg-muted px-1 rounded text-foreground">https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY</code>)</li>
+                    <li>Paste it into <code className="bg-muted px-1 rounded text-foreground">.env</code> as <code className="text-primary font-bold">VITE_ALCHEMY_RPC_URL</code></li>
+                  </ol>
+                </StepInstruction>
+
+                <StepInstruction
+                  step={2}
+                  title="Install MetaMask & Get Sepolia ETH"
+                  done={isConnected}
+                >
+                  <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+                    <li>Install <a href="https://metamask.io" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-0.5">MetaMask <ExternalLink className="size-2.5" /></a> browser extension</li>
+                    <li>Create a wallet and switch to <strong className="text-foreground">Sepolia Test Network</strong></li>
+                    <li>Get free Sepolia ETH from <a href="https://faucets.chain.link/sepolia" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-0.5">Chainlink Faucet <ExternalLink className="size-2.5" /></a> or <a href="https://www.alchemy.com/faucets/ethereum-sepolia" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-0.5">Alchemy Faucet <ExternalLink className="size-2.5" /></a></li>
+                    <li>Click <strong className="text-foreground">"Connect MetaMask"</strong> button above to link your wallet</li>
+                  </ol>
+                </StepInstruction>
+
+                <StepInstruction
+                  step={3}
+                  title="Deploy DocumentNotary.sol Smart Contract"
+                  done={isConfigured && CONTRACT_ADDRESS !== "0x0000000000000000000000000000000000000000"}
+                >
+                  <div className="space-y-1 text-muted-foreground">
+                    <p><strong className="text-foreground">Option A — One-Click Deploy from UI</strong> (Recommended):</p>
+                    <ol className="list-decimal list-inside space-y-0.5 pl-2">
+                      <li>Connect your MetaMask wallet (Step 2 above)</li>
+                      <li>Click <strong className="text-foreground">"Deploy Smart Contract with MetaMask"</strong> button above</li>
+                      <li>Confirm the transaction in MetaMask popup</li>
+                      <li>Wait ~12 seconds for Sepolia block confirmation</li>
+                      <li>Contract address auto-saves to <code className="bg-muted px-1 rounded text-foreground">.env</code></li>
+                    </ol>
+                    <p className="mt-2"><strong className="text-foreground">Option B — Deploy via Hardhat CLI</strong>:</p>
+                    <div className="bg-muted/50 rounded-sm border border-border p-2 font-mono text-[10px] mt-1">
+                      <div className="text-muted-foreground"># Add your MetaMask private key to .env</div>
+                      <div className="text-foreground">SEPOLIA_PRIVATE_KEY=your_metamask_private_key</div>
+                      <div className="text-muted-foreground mt-1"># Deploy</div>
+                      <div className="text-foreground">npx hardhat run scripts/deploy.cjs --network sepolia</div>
+                    </div>
+                    <p className="mt-2"><strong className="text-foreground">Option C — Deploy via Remix IDE</strong>:</p>
+                    <ol className="list-decimal list-inside space-y-0.5 pl-2">
+                      <li>Open <a href="https://remix.ethereum.org" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-0.5">remix.ethereum.org <ExternalLink className="size-2.5" /></a></li>
+                      <li>Paste <code className="bg-muted px-1 rounded text-foreground">contracts/DocumentNotary.sol</code> contents</li>
+                      <li>Compile with Solidity 0.8.20</li>
+                      <li>Deploy using "Injected Provider - MetaMask"</li>
+                      <li>Copy the deployed address to <code className="text-primary font-bold">VITE_CONTRACT_ADDRESS</code> in <code className="bg-muted px-1 rounded text-foreground">.env</code></li>
+                    </ol>
+                  </div>
+                </StepInstruction>
+
+                <StepInstruction
+                  step={4}
+                  title="Notarize Documents on Ethereum"
+                  done={onChainCount > 0}
+                >
+                  <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+                    <li>Navigate to any <strong className="text-foreground">Document Detail</strong> page</li>
+                    <li>Click the <strong className="text-foreground">"Blockchain"</strong> tab</li>
+                    <li>Click <strong className="text-foreground">"Notarize on Ethereum"</strong></li>
+                    <li>Confirm the transaction in MetaMask</li>
+                    <li>Once confirmed, the document's SHA-256 hash is <strong className="text-foreground">permanently anchored on Ethereum</strong></li>
+                    <li>View the proof on <a href="https://sepolia.etherscan.io" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-0.5">Sepolia Etherscan <ExternalLink className="size-2.5" /></a></li>
+                  </ol>
+                </StepInstruction>
+              </div>
+            </div>
+
+            {/* Current .env Status */}
+            <div className="rounded-sm border border-border bg-muted/20 p-4 space-y-2">
+              <div className="font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                Current Ethereum Environment Configuration
+              </div>
+              <div className="font-mono text-[11px] space-y-1">
+                <EnvRow
+                  label="VITE_ALCHEMY_RPC_URL"
+                  value={import.meta.env["VITE_ALCHEMY_RPC_URL"] ? `${String(import.meta.env["VITE_ALCHEMY_RPC_URL"]).slice(0, 42)}…` : "Not Set"}
+                  ok={Boolean(import.meta.env["VITE_ALCHEMY_RPC_URL"])}
+                />
+                <EnvRow
+                  label="VITE_ALCHEMY_API_KEY"
+                  value={import.meta.env["VITE_ALCHEMY_API_KEY"] ? `${String(import.meta.env["VITE_ALCHEMY_API_KEY"]).slice(0, 12)}…` : "Not Set"}
+                  ok={Boolean(import.meta.env["VITE_ALCHEMY_API_KEY"])}
+                />
+                <EnvRow label="VITE_ETH_NETWORK" value={ETH_NETWORK} ok={true} />
+                <EnvRow
+                  label="VITE_CONTRACT_ADDRESS"
+                  value={CONTRACT_ADDRESS ? `${CONTRACT_ADDRESS.slice(0, 12)}…${CONTRACT_ADDRESS.slice(-6)}` : "Not Set"}
+                  ok={isConfigured}
+                />
+              </div>
+            </div>
+          </div>
+        </Panel>
+
         {/* Quick Hash Verification Tool */}
         <Panel className="p-4 space-y-3">
           <div className="flex items-center justify-between">
@@ -348,7 +545,7 @@ function BlockchainPage() {
                     <th className="px-4 py-2.5 text-left font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Actor</th>
                     <th className="px-4 py-2.5 text-left font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Timestamp</th>
                     <th className="px-4 py-2.5 text-left font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Chain Seal</th>
-                    <th className="px-4 py-2.5 text-right font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Action</th>
+                    <th className="px-4 py-2.5 text-right font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -414,14 +611,24 @@ function BlockchainPage() {
                           )}
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <button
-                            onClick={() => void handleVerify(tx.txId)}
-                            disabled={isVerifying}
-                            className="inline-flex items-center gap-1 rounded-sm border border-border px-2 py-1 font-mono text-[9px] font-bold uppercase tracking-wider text-foreground hover:bg-accent cursor-pointer disabled:opacity-40"
-                          >
-                            {isVerifying ? <RefreshCw className="size-2.5 animate-spin" /> : <Activity className="size-2.5" />}
-                            Verify
-                          </button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => setSelectedTx(tx)}
+                              className="inline-flex items-center gap-1 rounded-sm border border-border px-2 py-1 font-mono text-[9px] font-bold uppercase tracking-wider text-foreground hover:bg-accent cursor-pointer"
+                              title="Inspect full file metadata stored on blockchain"
+                            >
+                              <Eye className="size-2.5 text-primary" />
+                              Metadata
+                            </button>
+                            <button
+                              onClick={() => void handleVerify(tx.txId)}
+                              disabled={isVerifying}
+                              className="inline-flex items-center gap-1 rounded-sm border border-border px-2 py-1 font-mono text-[9px] font-bold uppercase tracking-wider text-foreground hover:bg-accent cursor-pointer disabled:opacity-40"
+                            >
+                              {isVerifying ? <RefreshCw className="size-2.5 animate-spin" /> : <Activity className="size-2.5" />}
+                              Verify
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -441,6 +648,144 @@ function BlockchainPage() {
             <span className="ml-auto">
               Vault: <strong className="text-foreground">.data/blockchain-ledger.json</strong>
             </span>
+          </div>
+        )}
+
+        {/* Metadata Inspection Modal */}
+        {selectedTx && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4">
+            <div className="w-full max-w-2xl rounded-sm border border-border bg-background p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-border pb-3">
+                <div className="flex items-center gap-2">
+                  <Database className="size-5 text-primary" />
+                  <h3 className="font-mono text-sm font-bold uppercase tracking-wider text-foreground">
+                    Block #{selectedTx.blockIndex} — Metadata Payload & Chain Link
+                  </h3>
+                </div>
+                <button onClick={() => setSelectedTx(null)} className="text-muted-foreground hover:text-foreground cursor-pointer">
+                  <X className="size-4" />
+                </button>
+              </div>
+
+              {/* Document Metadata Fields */}
+              <div className="space-y-3">
+                <div className="font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  1. Document & Metadata Identity
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-xs font-mono rounded-sm border border-border bg-muted/20 p-3">
+                  <div>
+                    <span className="text-muted-foreground">Document Name:</span>
+                    <div className="font-bold text-foreground truncate">{selectedTx.documentName}</div>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Ref ID / Docket:</span>
+                    <div className="font-bold text-primary">{selectedTx.refId || selectedTx.documentId}</div>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Category:</span>
+                    <div className="font-bold text-foreground">{selectedTx.category || "Evidence Record"}</div>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Classification:</span>
+                    <div className="font-bold text-seal">{selectedTx.classification || "CONFIDENTIAL"}</div>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Status / Version:</span>
+                    <div className="font-bold text-foreground">{selectedTx.status || "SEALED"} ({selectedTx.version || "v1.0"})</div>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">File Size:</span>
+                    <div className="font-bold text-foreground">{selectedTx.fileSize ? `${(selectedTx.fileSize / 1024).toFixed(1)} KB` : "Stored"}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Cryptographic Hashes */}
+              <div className="space-y-3">
+                <div className="font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  2. Cryptographic Proofs & Chain Linkage
+                </div>
+                <div className="space-y-2 font-mono text-xs text-muted-foreground">
+                  <div className="rounded-sm border border-border bg-background p-2.5">
+                    <div className="flex items-center justify-between text-[10px] uppercase font-bold text-foreground mb-1">
+                      <span>Authoritative Payload SHA-256 Digest</span>
+                      <Copy
+                        className="size-3 cursor-pointer hover:text-primary"
+                        onClick={() => {
+                          void navigator.clipboard.writeText(selectedTx.sha256Hash);
+                          toast.success("Payload hash copied");
+                        }}
+                      />
+                    </div>
+                    <div className="break-all font-bold text-primary">{selectedTx.sha256Hash}</div>
+                  </div>
+
+                  <div className="rounded-sm border border-border bg-background p-2.5">
+                    <div className="flex items-center justify-between text-[10px] uppercase font-bold text-foreground mb-1">
+                      <span>Canonical Metadata SHA-256 Digest (metadataHash)</span>
+                      <Copy
+                        className="size-3 cursor-pointer hover:text-primary"
+                        onClick={() => {
+                          void navigator.clipboard.writeText(selectedTx.metadataHash);
+                          toast.success("Metadata hash copied");
+                        }}
+                      />
+                    </div>
+                    <div className="break-all font-bold text-foreground">{selectedTx.metadataHash}</div>
+                  </div>
+
+                  <div className="rounded-sm border border-border bg-background p-2.5">
+                    <div className="flex items-center justify-between text-[10px] uppercase font-bold text-foreground mb-1">
+                      <span>Block Tx Hash (sha256(prevTxId:metadataHash:timestamp))</span>
+                      <Copy
+                        className="size-3 cursor-pointer hover:text-primary"
+                        onClick={() => {
+                          void navigator.clipboard.writeText(selectedTx.txId);
+                          toast.success("Tx Hash copied");
+                        }}
+                      />
+                    </div>
+                    <div className="break-all font-bold text-foreground">{selectedTx.txId}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Digital Signature Details if Present */}
+              {selectedTx.digitalSignature && (
+                <div className="space-y-3">
+                  <div className="font-mono text-[10px] font-bold uppercase tracking-wider text-purple-400 flex items-center gap-1">
+                    <Key className="size-3" /> 3. RSA-SHA256 Digital Signature Payload
+                  </div>
+                  <div className="rounded-sm border border-purple-500/30 bg-purple-500/5 p-3 space-y-2 text-xs font-mono">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <span className="text-muted-foreground">Signer:</span>
+                        <div className="font-bold text-foreground">{selectedTx.digitalSignature.signerName} ({selectedTx.digitalSignature.signerRole})</div>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Signed At:</span>
+                        <div className="font-bold text-foreground">{formatDate(selectedTx.digitalSignature.signedAt)}</div>
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">RSA-2048 Signature Bytes (Hex):</span>
+                      <div className="break-all text-[10px] font-bold text-purple-400 mt-0.5 bg-background p-2 rounded-xs border border-border">
+                        {selectedTx.digitalSignature.signatureHex}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end pt-2 border-t border-border">
+                <button
+                  onClick={() => setSelectedTx(null)}
+                  className="rounded-sm bg-primary px-4 py-1.5 font-mono text-xs font-bold text-primary-foreground hover:bg-primary/90 cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

@@ -203,6 +203,21 @@ export const applySignature = createServerFn({ method: "POST" })
     return signDocument(data);
   });
 
+export const verifySignatureFn = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        actor: actorSchema,
+        documentId: z.string().min(1),
+        version: z.string().optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { verifyDocumentSignature } = await import("./dms.server");
+    return verifyDocumentSignature(data);
+  });
+
 export const reclassifyDocument = createServerFn({ method: "POST" })
   .inputValidator((input) =>
     z
@@ -429,4 +444,35 @@ export const updateContractAddressFn = createServerFn({ method: "POST" })
     return { success: true, address: data.address };
   });
 
+// ── Bulk Integrity Verification ────────────────────────────────
 
+export const bulkVerifyIntegrityFn = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        actor: actorSchema,
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { bulkVerifyIntegrity } = await import("./dms.server");
+    return bulkVerifyIntegrity(data);
+  });
+
+// ── Full-Text Document Search ─────────────────────────────────
+
+export const searchDocumentsFn = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        actor: actorSchema,
+        query: z.string().min(1),
+        limit: z.number().optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { searchDocuments } = await import("./dms.server");
+    const { actor, query, limit } = data;
+    return searchDocuments({ actor, query, ...(limit !== undefined ? { limit } : {}) });
+  });

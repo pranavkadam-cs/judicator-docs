@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -19,6 +19,7 @@ import {
 } from "@/components/dms/primitives";
 import {
   applySignature,
+  verifySignatureFn,
   checkIntegrity,
   reclassifyDocument,
   requestDownload,
@@ -30,6 +31,7 @@ import { shortHash, ROLE_PROFILE, CLASSIFICATIONS, canRead, type Classification 
 import { SUPPORTED_OCR_LANGUAGES } from "@/lib/ocr/ocr-types";
 import { WorkflowActions } from "@/components/dms/workflow-actions";
 import { SharePanel } from "@/components/dms/share-panel";
+import { IntegrityCertificate } from "@/components/dms/integrity-certificate";
 import { NotarizeButton } from "@/lib/ethereum/NotarizeButton";
 import {
   ShieldCheck,
@@ -45,6 +47,12 @@ import {
   Cpu,
   CheckCircle2,
   FileText,
+  Clock,
+  Award,
+  Lock,
+  Fingerprint,
+  BadgeCheck,
+  XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -80,18 +88,36 @@ function DocumentDetailsPage() {
   const tamper = useServerFn(simulateTamperFn);
   const restore = useServerFn(restoreDocumentFn);
   const sign = useServerFn(applySignature);
+  const verifySig = useServerFn(verifySignatureFn);
   const reclassify = useServerFn(reclassifyDocument);
   const reocr = useServerFn(triggerOCR);
 
   const [busy, setBusy] = useState("");
   const [copied, setCopied] = useState(false);
+  const [copiedSig, setCopiedSig] = useState(false);
   const [copiedText, setCopiedText] = useState(false);
-  const [activeTab, setActiveTab] = useState<"ocr" | "history" | "sharing" | "blockchain">("ocr");
+  const [activeTab, setActiveTab] = useState<"ocr" | "history" | "timeline" | "sharing" | "blockchain">("ocr");
   const [ocrSearch, setOcrSearch] = useState("");
   const [ocrLangSelection, setOcrLangSelection] = useState("eng");
+  const [showCertificate, setShowCertificate] = useState(false);
+  const [showSigDetails, setShowSigDetails] = useState(false);
+  const [timelineFilter, setTimelineFilter] = useState("");
+  const [sigVerifyResult, setSigVerifyResult] = useState<null | { valid: boolean; reason?: string; signatureId?: string | null; algorithm?: string | null; signerName?: string | null; signerBadge?: string | null; signerRole?: string | null; signedAt?: string | null; signedHash?: string | null; publicKeyFingerprint?: string | null; verifiedAt?: string }>(null);
 
   const doc = data?.documents.find((d) => d.id === docId);
   const cs = data?.cases.find((c) => c.id === doc?.caseId);
+
+  const docAuditEvents = useMemo(() => {
+    if (!data?.audit || !doc) return [];
+    const hashes = new Set(doc.versions.map((v) => v.hash));
+    return data.audit.filter(
+      (e) =>
+        e.targetId === doc.id ||
+        e.target === doc.name ||
+        e.target === doc.refId ||
+        (e.hash && hashes.has(e.hash)),
+    );
+  }, [data, doc]);
 
   if (isPending) {
     return (
@@ -217,16 +243,45 @@ function DocumentDetailsPage() {
     if (!doc || !actor) return;
     setBusy("sign");
     try {
-      await sign({
+      const res = await sign({
         data: {
           actor,
           documentId: doc.id,
         },
       });
-      toast.success("Digital signature applied successfully.");
+      const sigId = (res as any)?.signatureResult?.signatureId || "";
+      toast.success(
+        `✓ RSA-SHA256 digital signature applied!${sigId ? ` ID: ${sigId.slice(0, 28)}...` : ""}`,
+        { duration: 6000 }
+      );
       await refresh();
     } catch (e: any) {
       toast.error(e.message || "Failed to apply digital signature");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function handleVerifySignature() {
+    if (!doc || !actor) return;
+    setBusy("verifysig");
+    setSigVerifyResult(null);
+    try {
+      const res = await verifySig({
+        data: {
+          actor,
+          documentId: doc.id,
+        },
+      });
+      setSigVerifyResult(res as any);
+      if ((res as any).valid) {
+        toast.success(`✓ RSA-SHA256 signature is VALID — signed by ${(res as any).signerName || "unknown"}`, { duration: 6000 });
+      } else {
+        toast.error(`✗ Signature verification FAILED: ${(res as any).reason || "Invalid signature"}`, { duration: 7000 });
+      }
+      await refresh();
+    } catch (e: any) {
+      toast.error(e.message || "Signature verification failed");
     } finally {
       setBusy("");
     }
@@ -384,8 +439,20 @@ function DocumentDetailsPage() {
             <div>
               <Label>Digital Signature</Label>
               <dd className="mt-1 text-foreground font-mono text-[11px]">
-                {current?.signature ? (
-                  <span className="text-seal font-bold">{current.signature}</span>
+                {current?.signatureBase64 ? (
+                  <button
+                    onClick={() => setShowSigDetails(!showSigDetails)}
+                    className="flex items-center gap-1.5 text-seal font-bold hover:underline cursor-pointer"
+                    title="Click to expand full signature details"
+                  >
+                    <BadgeCheck className="size-3.5" />
+                    RSA-SHA256 Signed
+                    <span className="text-muted-foreground font-normal">({current.signatureAlgorithm || "RSA-SHA256"}, {current.signatureKeySize || 2048}-bit)</span>
+                  </button>
+                ) : current?.signature ? (
+                  <span className="text-seal font-bold flex items-center gap-1">
+                    <Lock className="size-3" />{current.signature}
+                  </span>
                 ) : (
                   <span className="text-muted-foreground">Unsigned</span>
                 )}
@@ -430,6 +497,90 @@ function DocumentDetailsPage() {
               </div>
             )}
           </div>
+
+          {/* RSA-SHA256 Digital Signature Details Panel */}
+          {showSigDetails && current?.signatureBase64 && (
+            <div className="border-t border-border pt-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-1.5">
+                  <Fingerprint className="size-3.5 text-seal" />
+                  RSA-SHA256 Digital Signature Details
+                </Label>
+                <button
+                  onClick={() => setShowSigDetails(false)}
+                  className="text-muted-foreground hover:text-foreground text-xs font-mono"
+                >
+                  ✕ Close
+                </button>
+              </div>
+
+              <div className="grid gap-2 rounded-sm border border-seal/30 bg-seal/5 p-4 font-mono text-[11px] text-foreground">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                  <div><span className="text-muted-foreground">Algorithm:</span> <span className="font-bold text-seal">{current.signatureAlgorithm || "RSA-SHA256"}</span></div>
+                  <div><span className="text-muted-foreground">Key Size:</span> <span className="font-bold">{current.signatureKeySize || 2048} bits</span></div>
+                  <div><span className="text-muted-foreground">Signed By:</span> <span className="font-bold">{current.signedBy}</span></div>
+                  <div><span className="text-muted-foreground">Badge:</span> <span className="font-bold">{current.signerBadge || "—"}</span></div>
+                  <div><span className="text-muted-foreground">Role:</span> <span className="font-bold">{current.signerRole || "—"}</span></div>
+                  <div><span className="text-muted-foreground">Signed At:</span> <span className="font-bold">{current.signedAt ? new Date(current.signedAt).toLocaleString() : "—"}</span></div>
+                </div>
+
+                {current.signatureId && (
+                  <div className="mt-1">
+                    <div className="text-muted-foreground text-[10px] uppercase font-bold mb-1">Signature ID</div>
+                    <div className="select-all break-all text-foreground bg-background p-2 rounded-xs border border-border">{current.signatureId}</div>
+                  </div>
+                )}
+
+                {current.publicKeyFingerprint && (
+                  <div>
+                    <div className="text-muted-foreground text-[10px] uppercase font-bold mb-1">Public Key Fingerprint (SHA-256)</div>
+                    <div className="select-all break-all text-foreground bg-background p-2 rounded-xs border border-border text-[10px] leading-relaxed">{current.publicKeyFingerprint}</div>
+                  </div>
+                )}
+
+                {current.signedHash && (
+                  <div>
+                    <div className="text-muted-foreground text-[10px] uppercase font-bold mb-1">Signed Hash (SHA-256 of Document)</div>
+                    <div className="select-all break-all text-foreground bg-background p-2 rounded-xs border border-border">{current.signedHash}</div>
+                  </div>
+                )}
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-muted-foreground text-[10px] uppercase font-bold">RSA Signature (Base64, {current.signatureBase64?.length} chars)</span>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(current.signatureBase64 || "");
+                        setCopiedSig(true);
+                        toast.success("RSA signature copied to clipboard.");
+                        setTimeout(() => setCopiedSig(false), 2500);
+                      }}
+                      className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"
+                    >
+                      {copiedSig ? <CheckCircle2 className="size-3 text-seal" /> : <Copy className="size-3" />}
+                      {copiedSig ? "Copied" : "Copy"}
+                    </button>
+                  </div>
+                  <div className="select-all break-all text-muted-foreground bg-background p-2 rounded-xs border border-border max-h-24 overflow-y-auto text-[10px]">
+                    {current.signatureBase64}
+                  </div>
+                </div>
+
+                {/* Signature Verification */}
+                {sigVerifyResult && (
+                  <div className={`flex items-center gap-2 rounded-xs border p-2.5 text-xs font-bold ${
+                    sigVerifyResult.valid
+                      ? "border-seal/40 bg-seal/10 text-seal"
+                      : "border-destructive/40 bg-destructive/10 text-destructive"
+                  }`}>
+                    {sigVerifyResult.valid
+                      ? <><BadgeCheck className="size-4" /> Signature VALID — Cryptographic verification passed</>  
+                      : <><XCircle className="size-4" /> Verification FAILED — {sigVerifyResult.reason}</>}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </Panel>
 
         {/* Actions panel */}
@@ -485,11 +636,32 @@ function DocumentDetailsPage() {
               <button
                 onClick={handleSign}
                 disabled={busy === "sign"}
-                className="flex items-center gap-1.5 rounded-sm border border-border bg-background px-4 py-2 font-mono text-[10px] font-bold uppercase tracking-wider text-seal hover:bg-seal/10 cursor-pointer"
+                className="flex items-center gap-1.5 rounded-sm border border-seal/50 bg-seal/10 px-4 py-2 font-mono text-[10px] font-bold uppercase tracking-wider text-seal hover:bg-seal/20 cursor-pointer"
               >
-                <Key className="size-3.5" /> Apply Digital Signature
+                <Key className="size-3.5" />
+                {busy === "sign" ? "Signing (RSA-SHA256)…" : "Apply RSA-SHA256 Signature"}
               </button>
             )}
+
+            {current?.signatureBase64 && (
+              <button
+                onClick={handleVerifySignature}
+                disabled={busy === "verifysig"}
+                className="flex items-center gap-1.5 rounded-sm border border-seal/30 bg-background px-4 py-2 font-mono text-[10px] font-bold uppercase tracking-wider text-seal hover:bg-seal/10 cursor-pointer"
+                title="Cryptographically verify the RSA-SHA256 digital signature"
+              >
+                <BadgeCheck className="size-3.5" />
+                {busy === "verifysig" ? "Verifying Signature…" : "Verify Digital Signature"}
+              </button>
+            )}
+
+            <button
+              onClick={() => setShowCertificate(true)}
+              className="flex items-center gap-1.5 rounded-sm border border-seal/50 bg-seal/10 px-4 py-2 font-mono text-[10px] font-bold uppercase tracking-wider text-seal hover:bg-seal/20 cursor-pointer"
+              title="Generate official legal Integrity Certificate with cryptographic verification proof"
+            >
+              <Award className="size-3.5" /> Integrity Certificate
+            </button>
 
             {(actor.role === "ADMIN" || actor.role === "INVESTIGATOR") && (
               <div className="flex items-center gap-2 border-l border-border pl-2.5">
@@ -543,6 +715,17 @@ function DocumentDetailsPage() {
               }`}
             >
               Revision History & Digests
+            </button>
+            <button
+              onClick={() => setActiveTab("timeline")}
+              className={`px-4 py-2 font-mono text-xs font-bold uppercase tracking-wider border-b-2 cursor-pointer flex items-center gap-1.5 ${
+                activeTab === "timeline"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Clock className="size-3.5" />
+              <span>Chain of Custody ({docAuditEvents.length})</span>
             </button>
             <button
               onClick={() => setActiveTab("sharing")}
@@ -711,13 +894,57 @@ function DocumentDetailsPage() {
                       <IntegrityBadge status={v.integrity_status ?? "VERIFIED"} />
                       <span className="text-muted-foreground">·</span>
                       <span className="text-muted-foreground">({formatBytes(v.size)})</span>
-                      {v.signature && <span className="text-seal ml-2">Signed by {v.signedBy}</span>}
+                      {v.signatureBase64 && (
+                        <span className="flex items-center gap-1 text-seal ml-2 font-bold">
+                          <BadgeCheck className="size-3.5" /> RSA-SHA256 Signed by {v.signedBy}
+                        </span>
+                      )}
+                      {v.signature && !v.signatureBase64 && (
+                        <span className="text-seal ml-2">Signed by {v.signedBy}</span>
+                      )}
                     </div>
 
                     <div className="font-mono text-xs text-foreground bg-background p-2 rounded-xs border border-border">
                       <div className="text-[10px] text-muted-foreground font-bold uppercase">SHA-256 Digest</div>
                       <div className="select-all break-all">{v.hash}</div>
                     </div>
+
+                    {v.signatureBase64 && (
+                      <div className="rounded-xs border border-seal/30 bg-seal/5 p-3 font-mono text-[11px] space-y-1.5">
+                        <div className="text-[10px] text-seal font-bold uppercase flex items-center gap-1.5">
+                          <Fingerprint className="size-3" /> Digital Signature (RSA-SHA256)
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px]">
+                          <div><span className="text-muted-foreground">Algorithm:</span> <span className="font-bold">{v.signatureAlgorithm || "RSA-SHA256"}</span></div>
+                          <div><span className="text-muted-foreground">Key Size:</span> <span className="font-bold">{v.signatureKeySize || 2048} bits</span></div>
+                          <div><span className="text-muted-foreground">Badge:</span> <span className="font-bold">{v.signerBadge || "—"}</span></div>
+                          <div><span className="text-muted-foreground">Role:</span> <span className="font-bold">{v.signerRole || "—"}</span></div>
+                        </div>
+                        {v.signatureId && (
+                          <div className="text-[10px]">
+                            <span className="text-muted-foreground">ID: </span>
+                            <span className="text-foreground select-all">{v.signatureId}</span>
+                          </div>
+                        )}
+                        {v.publicKeyFingerprint && (
+                          <div className="text-[10px]">
+                            <span className="text-muted-foreground">Key Fingerprint: </span>
+                            <span className="text-foreground select-all">{v.publicKeyFingerprint.slice(0, 47)}…</span>
+                          </div>
+                        )}
+                        {v.signedHash && (
+                          <div className="text-[10px]">
+                            <span className="text-muted-foreground">Signed Hash: </span>
+                            <span className="text-foreground select-all">{v.signedHash.slice(0, 16)}…{v.signedHash.slice(-8)}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2 pt-0.5">
+                          {v.signatureVerified
+                            ? <span className="flex items-center gap-1 text-seal text-[10px] font-bold"><CheckCircle2 className="size-3" /> Verified on creation</span>
+                            : <span className="flex items-center gap-1 text-muted-foreground text-[10px]"><AlertTriangle className="size-3" /> Not yet re-verified</span>}
+                        </div>
+                      </div>
+                    )}
 
                     <p className="text-xs text-foreground">{v.note}</p>
                     <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
@@ -735,6 +962,120 @@ function DocumentDetailsPage() {
                   </li>
                 ))}
               </ol>
+            </Panel>
+          ) : activeTab === "timeline" ? (
+            <Panel className="p-5 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Label>Chain of Custody Audit Trail</Label>
+                    <span className="font-mono text-xs text-primary font-bold">
+                      {docAuditEvents.length} Recorded Custody Events
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Chronological, immutable audit ledger tracking intake, hash verification, digital signatures, access sharing, and downloads.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2 size-3 text-muted-foreground" />
+                    <input
+                      type="text"
+                      value={timelineFilter}
+                      onChange={(e) => setTimelineFilter(e.target.value)}
+                      placeholder="Filter custody events..."
+                      className="rounded-sm border border-border bg-background pl-7 pr-3 py-1 font-mono text-[11px] outline-none focus:border-primary"
+                    />
+                  </div>
+                  <button
+                    onClick={() => setShowCertificate(true)}
+                    className="flex items-center gap-1.5 rounded-sm bg-primary px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-primary-foreground hover:opacity-90 cursor-pointer"
+                  >
+                    <Award className="size-3" /> Certificate
+                  </button>
+                </div>
+              </div>
+
+              {docAuditEvents.length === 0 ? (
+                <div className="py-8 text-center text-xs text-muted-foreground">
+                  No custody events recorded for this docket yet.
+                </div>
+              ) : (
+                <ol className="relative border-l border-border pl-4 space-y-5">
+                  {docAuditEvents
+                    .filter((e) => {
+                      if (!timelineFilter.trim()) return true;
+                      const q = timelineFilter.toLowerCase();
+                      return (
+                        e.action.toLowerCase().includes(q) ||
+                        e.actor.toLowerCase().includes(q) ||
+                        e.detail.toLowerCase().includes(q) ||
+                        (e.hash && e.hash.toLowerCase().includes(q))
+                      );
+                    })
+                    .map((event) => {
+                      const isTamper =
+                        event.action.includes("TAMPER") || event.action.includes("FAILED");
+                      const isVerified =
+                        event.action.includes("VERIF") || (event.action as string) === "DOCUMENT_CREATED";
+                      const isSign = event.action.includes("SIGN");
+
+                      return (
+                        <li key={event.id} className="relative space-y-1.5">
+                          <span
+                            className={cn(
+                              "absolute -left-[21px] top-1.5 flex size-2.5 items-center justify-center rounded-full",
+                              isTamper
+                                ? "bg-destructive animate-ping"
+                                : isSign
+                                ? "bg-seal"
+                                : isVerified
+                                ? "bg-primary"
+                                : "bg-muted-foreground",
+                            )}
+                          />
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={cn(
+                                  "font-mono text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-xs border",
+                                  isTamper
+                                    ? "border-destructive/40 bg-destructive/15 text-destructive"
+                                    : isSign
+                                    ? "border-seal/40 bg-seal/15 text-seal"
+                                    : "border-primary/40 bg-primary/15 text-primary",
+                                )}
+                              >
+                                {event.action.replace(/_/g, " ")}
+                              </span>
+                              <span className="font-mono text-xs font-semibold text-foreground">
+                                {event.actor}
+                              </span>
+                              <span className="font-mono text-[10px] text-muted-foreground">
+                                ({event.role})
+                              </span>
+                            </div>
+                            <span className="font-mono text-[11px] text-muted-foreground">
+                              {formatDate(event.at)}
+                            </span>
+                          </div>
+
+                          <div className="text-xs text-foreground bg-surface p-2.5 rounded-xs border border-border">
+                            <div>{event.detail}</div>
+                            {event.hash && (
+                              <div className="mt-1.5 flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground border-t border-border/50 pt-1.5">
+                                <span className="font-bold text-foreground">SHA-256:</span>
+                                <span className="text-primary select-all break-all">{event.hash}</span>
+                              </div>
+                            )}
+                          </div>
+                        </li>
+                      );
+                    })}
+                </ol>
+              )}
             </Panel>
           ) : activeTab === "sharing" ? (
             <SharePanel documentId={doc.id} />
@@ -781,6 +1122,16 @@ function DocumentDetailsPage() {
             </Panel>
           )}
         </div>
+
+        {/* Certificate Modal */}
+        {showCertificate && (
+          <IntegrityCertificate
+            document={doc}
+            caseFile={cs}
+            auditEvents={data?.audit || []}
+            onClose={() => setShowCertificate(false)}
+          />
+        )}
       </div>
     </AppShell>
   );

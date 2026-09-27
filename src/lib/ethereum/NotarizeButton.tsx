@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Vigil.OS — NotarizeButton
  * One-click "Notarize on Ethereum" button for the document detail page.
  * Shows live status: idle → wallet popup → broadcasting → confirmed
@@ -28,6 +28,8 @@ const STATUS_LABEL: Record<string, string> = {
   error: "Notarize on Ethereum",
 };
 
+import { DeployContractButton } from "./DeployContractModal";
+
 export function NotarizeButton({
   sha256Hash,
   documentId,
@@ -40,12 +42,14 @@ export function NotarizeButton({
 
   if (!isConfigured) {
     return (
-      <div className={cn("rounded-sm border border-dashed border-border p-4 text-center", className)}>
-        <p className="text-xs text-muted-foreground">
-          Ethereum not configured.{" "}
-          <span className="font-mono">VITE_ALCHEMY_RPC_URL</span> and{" "}
-          <span className="font-mono">VITE_CONTRACT_ADDRESS</span> must be set in <span className="font-mono">.env</span>.
+      <div className={cn("rounded-sm border border-dashed border-amber-500/30 bg-amber-500/5 p-4 text-center space-y-2", className)}>
+        <p className="text-xs text-amber-400 font-bold">
+          Smart Contract Not Deployed Yet
         </p>
+        <p className="text-[10px] text-muted-foreground">
+          Deploy the <span className="font-mono text-foreground">DocumentNotary.sol</span> contract to Sepolia testnet using MetaMask.
+        </p>
+        <DeployContractButton />
       </div>
     );
   }

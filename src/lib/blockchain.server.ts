@@ -20,8 +20,18 @@ import { join } from "node:path";
 export type BlockchainEventType =
   | "DOCUMENT_NOTARIZED"
   | "DOCUMENT_SIGNED"
+  | "DOCUMENT_METADATA_UPDATED"
   | "TAMPER_DETECTED"
   | "INTEGRITY_VERIFIED";
+
+export type DigitalSignatureMetadata = {
+  signatureHex?: string | undefined;
+  signerId?: string | undefined;
+  signerName?: string | undefined;
+  signerRole?: string | undefined;
+  algorithm?: string | undefined;
+  signedAt?: string | undefined;
+};
 
 export type BlockchainTransaction = {
   txId: string;           // sha256(prevTxId:metadataHash:timestamp) — chain link
@@ -31,7 +41,15 @@ export type BlockchainTransaction = {
   eventType: BlockchainEventType;
   documentId: string;
   documentName: string;
+  refId?: string | undefined;
+  category?: string | undefined;
+  classification?: string | undefined;
+  status?: string | undefined;
+  version?: string | undefined;
+  fileSize?: number | undefined;
+  mimeType?: string | undefined;
   sha256Hash: string;     // authoritative SHA-256 digest of document bytes
+  digitalSignature?: DigitalSignatureMetadata | undefined;
   ocrStatus?: string | undefined;
   actorId: string;
   actorName: string;
@@ -53,7 +71,15 @@ export type AnchorPayload = {
   eventType: BlockchainEventType;
   documentId: string;
   documentName: string;
+  refId?: string | undefined;
+  category?: string | undefined;
+  classification?: string | undefined;
+  status?: string | undefined;
+  version?: string | undefined;
+  fileSize?: number | undefined;
+  mimeType?: string | undefined;
   sha256Hash: string;
+  digitalSignature?: DigitalSignatureMetadata | undefined;
   ocrStatus?: string | undefined;
   actorId: string;
   actorName: string;
@@ -118,7 +144,23 @@ function computeMetadataHash(payload: AnchorPayload, timestamp: string): string 
   const canonical = JSON.stringify({
     eventType: payload.eventType,
     documentId: payload.documentId,
+    refId: payload.refId || "",
+    documentName: payload.documentName,
+    category: payload.category || "",
+    classification: payload.classification || "",
+    status: payload.status || "",
+    version: payload.version || "",
+    fileSize: payload.fileSize || 0,
+    mimeType: payload.mimeType || "",
     sha256Hash: payload.sha256Hash.toLowerCase(),
+    digitalSignature: payload.digitalSignature ? {
+      signatureHex: payload.digitalSignature.signatureHex || "",
+      signerId: payload.digitalSignature.signerId || "",
+      signerName: payload.digitalSignature.signerName || "",
+      signerRole: payload.digitalSignature.signerRole || "",
+      algorithm: payload.digitalSignature.algorithm || "RSA-SHA256",
+      signedAt: payload.digitalSignature.signedAt || "",
+    } : null,
     actorId: payload.actorId,
     caseId: payload.caseId,
     timestamp,
@@ -213,7 +255,15 @@ export async function anchorToBlockchain(payload: AnchorPayload): Promise<Anchor
       eventType: payload.eventType,
       documentId: sanitizeString(payload.documentId, 64),
       documentName: sanitizeString(payload.documentName, 128),
+      refId: payload.refId ? sanitizeString(payload.refId, 64) : undefined,
+      category: payload.category ? sanitizeString(payload.category, 64) : undefined,
+      classification: payload.classification ? sanitizeString(payload.classification, 32) : undefined,
+      status: payload.status ? sanitizeString(payload.status, 32) : undefined,
+      version: payload.version ? sanitizeString(payload.version, 16) : undefined,
+      fileSize: typeof payload.fileSize === "number" ? payload.fileSize : undefined,
+      mimeType: payload.mimeType ? sanitizeString(payload.mimeType, 64) : undefined,
       sha256Hash: cleanHash,
+      digitalSignature: payload.digitalSignature,
       ocrStatus: payload.ocrStatus ? sanitizeString(payload.ocrStatus, 32) : undefined,
       actorId: sanitizeString(payload.actorId, 64),
       actorName: sanitizeString(payload.actorName, 64),
@@ -232,7 +282,15 @@ export async function anchorToBlockchain(payload: AnchorPayload): Promise<Anchor
       eventType: sanitizedPayload.eventType,
       documentId: sanitizedPayload.documentId,
       documentName: sanitizedPayload.documentName,
+      refId: sanitizedPayload.refId,
+      category: sanitizedPayload.category,
+      classification: sanitizedPayload.classification,
+      status: sanitizedPayload.status,
+      version: sanitizedPayload.version,
+      fileSize: sanitizedPayload.fileSize,
+      mimeType: sanitizedPayload.mimeType,
       sha256Hash: sanitizedPayload.sha256Hash,
+      digitalSignature: sanitizedPayload.digitalSignature,
       ocrStatus: sanitizedPayload.ocrStatus,
       actorId: sanitizedPayload.actorId,
       actorName: sanitizedPayload.actorName,

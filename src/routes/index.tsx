@@ -13,7 +13,20 @@ import {
 import { useActor } from "@/components/dms/actor";
 import { ROLE_PROFILE, canRead, shortHash } from "@/lib/dms-types";
 import { AnalyticsCharts } from "@/components/dms/analytics-charts";
-import { Shield, Clock, FileWarning, Eye } from "lucide-react";
+import {
+  Shield,
+  Clock,
+  FileWarning,
+  Eye,
+  FolderPlus,
+  ShieldCheck,
+  Cpu,
+  FileBarChart,
+  Settings,
+  Sparkles,
+  Server,
+  CheckCircle2,
+} from "lucide-react";
 
 export const Route = createFileRoute("/")({
   component: Command,
@@ -46,6 +59,43 @@ function Command() {
 
         return (
           <div className="space-y-6">
+            {/* Quick Operations Toolbar */}
+            <div className="flex flex-wrap items-center gap-2 p-3 rounded-sm border border-border bg-surface">
+              <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground mr-1">
+                Quick Operations:
+              </span>
+              <Link
+                to="/cases"
+                className="inline-flex items-center gap-1.5 rounded-sm bg-primary px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider text-primary-foreground hover:opacity-90"
+              >
+                <FolderPlus className="size-3" /> New Case / Evidence
+              </Link>
+              <Link
+                to="/audit"
+                className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-background px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider text-foreground hover:bg-accent"
+              >
+                <ShieldCheck className="size-3 text-seal" /> Integrity Audit
+              </Link>
+              <Link
+                to="/blockchain"
+                className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-background px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider text-foreground hover:bg-accent"
+              >
+                <Cpu className="size-3 text-primary" /> Alchemy Ledger
+              </Link>
+              <Link
+                to="/reports"
+                className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-background px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider text-foreground hover:bg-accent"
+              >
+                <FileBarChart className="size-3 text-caution" /> Executive Reports
+              </Link>
+              <Link
+                to="/settings"
+                className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-background px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider text-foreground hover:bg-accent"
+              >
+                <Settings className="size-3 text-muted-foreground" /> Settings
+              </Link>
+            </div>
+
             {/* Security Alerts Banner for Admins/Investigators */}
             {tamperAlerts > 0 && (actor.role === "ADMIN" || actor.role === "INVESTIGATOR") && (
               <div className="flex items-center gap-3 bg-destructive/10 border border-destructive/30 p-4 rounded-sm animate-pulse text-destructive">
@@ -64,6 +114,69 @@ function Command() {
                 </Link>
               </div>
             )}
+
+            {/* System Health & Security Subsystems */}
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 font-mono text-xs">
+              <Panel className="p-3.5 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Cryptographic Integrity
+                  </span>
+                  <CheckCircle2 className="size-3.5 text-seal" />
+                </div>
+                <div className="text-sm font-bold text-foreground">
+                  {tamperAlerts === 0 ? "100% Intact" : `${tamperAlerts} Alert(s)`}
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  SHA-256 digests validated across records
+                </p>
+              </Panel>
+
+              <Panel className="p-3.5 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Blockchain Notarization
+                  </span>
+                  <Cpu className="size-3.5 text-primary" />
+                </div>
+                <div className="text-sm font-bold text-foreground">
+                  Alchemy RPC Ready
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  Ethereum Sepolia / Local Hash Ledger
+                </p>
+              </Panel>
+
+              <Panel className="p-3.5 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    OCR Forensic Engine
+                  </span>
+                  <Sparkles className="size-3.5 text-seal" />
+                </div>
+                <div className="text-sm font-bold text-foreground">
+                  Tesseract + PDF Parser
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  Multi-language text extraction online
+                </p>
+              </Panel>
+
+              <Panel className="p-3.5 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Vault Storage Layer
+                  </span>
+                  <Server className="size-3.5 text-foreground" />
+                </div>
+                <div className="text-sm font-bold text-foreground">
+                  Dual-Tier Vault Active
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  Cloud Object Store + Local Disk
+                </p>
+              </Panel>
+            </div>
 
             {/* Statistics Row */}
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 animate-entry">

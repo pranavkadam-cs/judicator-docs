@@ -34,6 +34,7 @@ function DocumentsPage() {
     classification: "",
     status: "",
     tag: "",
+    ocrStatus: "",
     startDate: "",
     endDate: "",
   });
@@ -79,6 +80,9 @@ function DocumentsPage() {
 
       // 6. Tag Filter
       if (filters.tag && !doc.tags.includes(filters.tag)) return false;
+
+      // 6b. OCR Status Filter
+      if (filters.ocrStatus && doc.ocr_status !== filters.ocrStatus) return false;
 
       // 7. Date Range Filter
       if (filters.startDate) {

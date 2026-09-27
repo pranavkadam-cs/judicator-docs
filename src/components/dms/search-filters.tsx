@@ -9,6 +9,7 @@ export interface FilterState {
   classification: string;
   status: string;
   tag: string;
+  ocrStatus?: string;
   startDate: string;
   endDate: string;
 }
@@ -42,6 +43,7 @@ export function SearchFilters({
       classification: "",
       status: "",
       tag: "",
+      ocrStatus: "",
       startDate: "",
       endDate: "",
     });
@@ -169,6 +171,20 @@ export function SearchFilters({
             </div>
 
             <div>
+              <Label className="mb-1.5 block">OCR Text Status</Label>
+              <select
+                value={filters.ocrStatus || ""}
+                onChange={(e) => updateFilter("ocrStatus", e.target.value)}
+                className="w-full rounded-sm border border-border bg-background px-2.5 py-1.5 text-xs outline-none"
+              >
+                <option value="">All OCR States</option>
+                <option value="COMPLETED">Indexed / Extracted</option>
+                <option value="PENDING">Processing / Pending</option>
+                <option value="FAILED">OCR Failed</option>
+              </select>
+            </div>
+
+            <div>
               <Label className="mb-1.5 block">Start Date</Label>
               <input
                 type="date"
@@ -190,6 +206,13 @@ export function SearchFilters({
           </div>
         </Panel>
       )}
+
+      <div className="flex items-center justify-between text-[11px] text-muted-foreground px-1">
+        <span className="flex items-center gap-1.5 font-mono text-[10px]">
+          <span className="size-1.5 rounded-full bg-seal animate-pulse" />
+          Full-text OCR Engine Active · Searches metadata, docket IDs, and extracted document text
+        </span>
+      </div>
     </div>
   );
 }

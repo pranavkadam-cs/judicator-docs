@@ -16,7 +16,8 @@ import { injected, metaMask } from "wagmi/connectors";
 // ─── Env helpers ──────────────────────────────────────────────
 
 export const ALCHEMY_RPC_URL: string =
-  (import.meta.env["VITE_ALCHEMY_RPC_URL"] as string | undefined) ?? "";
+  (import.meta.env["VITE_ALCHEMY_RPC_URL"] as string | undefined) ||
+  "https://ethereum-sepolia-rpc.publicnode.com";
 
 export const ALCHEMY_API_KEY: string =
   (import.meta.env["VITE_ALCHEMY_API_KEY"] as string | undefined) ?? "";
@@ -31,9 +32,7 @@ export const CONTRACT_ADDRESS: `0x${string}` =
   ((import.meta.env["VITE_CONTRACT_ADDRESS"] as string | undefined) ?? "0x0000000000000000000000000000000000000000") as `0x${string}`;
 
 export const isConfigured: boolean = Boolean(
-  (import.meta.env["VITE_ALCHEMY_RPC_URL"] as string | undefined) &&
-  (import.meta.env["VITE_CONTRACT_ADDRESS"] as string | undefined) &&
-  (import.meta.env["VITE_CONTRACT_ADDRESS"] as string | undefined) !== "0x0000000000000000000000000000000000000000"
+  CONTRACT_ADDRESS && CONTRACT_ADDRESS !== "0x0000000000000000000000000000000000000000"
 );
 
 // ─── Active chain ─────────────────────────────────────────────
@@ -56,8 +55,8 @@ export function etherscanAddress(addr: string) {
 // ─── Wagmi config ─────────────────────────────────────────────
 
 // Always provide transports for both chains to satisfy wagmi's type constraints
-const sepoliaTransport = { [sepolia.id]: ALCHEMY_RPC_URL ? http(ALCHEMY_RPC_URL) : http() };
-const mainnetTransport = { [mainnet.id]: ALCHEMY_RPC_URL ? http(ALCHEMY_RPC_URL) : http() };
+const sepoliaTransport = { [sepolia.id]: http(ALCHEMY_RPC_URL) };
+const mainnetTransport = { [mainnet.id]: http(ALCHEMY_RPC_URL) };
 const chainTransports = ETH_NETWORK === "mainnet"
   ? { ...sepoliaTransport, ...mainnetTransport }
   : { ...mainnetTransport, ...sepoliaTransport };
@@ -70,3 +69,4 @@ export const wagmiConfig = createConfig({
   ],
   transports: chainTransports,
 });
+

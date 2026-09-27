@@ -33,12 +33,16 @@ export function AppShell({
     { to: "/assets", label: "Assets", hint: "Lifecycle" },
     { to: "/audit", label: "Audit trail", hint: "Chain of custody" },
     { to: "/blockchain", label: "Blockchain", hint: "Ledger explorer" },
+    { to: "/reports", label: "Reports", hint: "Certificates & Export" },
   ];
 
-  // Add Admin-only Navigation item
+  // Add Admin-only Navigation items
   if (actor.role === "ADMIN") {
     NAV.push({ to: "/users", label: "Personnel", hint: "User Accounts" });
+    NAV.push({ to: "/settings", label: "Settings", hint: "System Config" });
   }
+
+  NAV.push({ to: "/about", label: "About", hint: "Architecture & SIH" });
 
   async function handleLogout() {
     await logout();

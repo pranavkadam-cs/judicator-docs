@@ -180,6 +180,19 @@ export type DocVersion = {
   objectKey: string;
   signature: string | null;
   signedBy: string | null;
+  signedAt?: string | null;
+  // ── RSA-SHA256 Digital Signature Cryptographic Fields ──
+  signatureBase64?: string | null;       // Raw RSA signature bytes (Base64-encoded)
+  signatureHex?: string | null;          // RSA signature in hex (for display)
+  signatureId?: string | null;           // Human-readable signature ID
+  signatureAlgorithm?: "RSA-SHA256" | null; // Signing algorithm
+  signatureKeySize?: number | null;      // Key size in bits (2048)
+  publicKeyPem?: string | null;          // PEM-encoded RSA public key of signer
+  publicKeyFingerprint?: string | null;  // SHA-256 fingerprint of signer's public key
+  signedHash?: string | null;            // The SHA-256 hash that was digitally signed
+  signerBadge?: string | null;           // Badge/credential of the signer
+  signerRole?: string | null;            // Role of the signer at time of signing
+  signatureVerified?: boolean | null;    // Whether signature was verified on creation
   note: string;
   integrity_status?: IntegrityStatus;
   last_verified_at?: string | null;
@@ -374,7 +387,9 @@ export type AuditAction =
   | "OCR_COMPLETED"
   | "OCR_FAILED"
   | "BLOCKCHAIN_ANCHORED"
-  | "BLOCKCHAIN_FAILED";
+  | "BLOCKCHAIN_FAILED"
+  | "SIGNATURE_VERIFIED"
+  | "SIGNATURE_VERIFICATION_FAILED";
 
 export type AuditEvent = {
   id: string;
