@@ -52,7 +52,10 @@ import {
   Fingerprint,
   BadgeCheck,
   XCircle,
+  Globe,
 } from "lucide-react";
+import { NotarizeButton } from "@/lib/ethereum/NotarizeButton";
+import { WalletButton } from "@/lib/ethereum/WalletButton";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/documents/$docId")({
@@ -363,7 +366,15 @@ function DocumentDetailsPage() {
   const hasClearance = actor ? canRead(actor.role, doc.classification) : false;
 
   return (
-    <AppShell title={doc.name} subtitle={`Docket: ${doc.refId}`}>
+    <AppShell
+      title={doc.name}
+      subtitle={`Docket: ${doc.refId}`}
+      actions={
+        <div className="flex items-center gap-2">
+          <WalletButton />
+        </div>
+      }
+    >
       <div className="space-y-6">
         <div className="flex items-center gap-2 text-xs">
           <Link to="/documents" className="font-mono text-primary hover:underline">
@@ -495,6 +506,29 @@ function DocumentDetailsPage() {
                 <span>Project: {doc.cloud_project || "324957553228"}</span>
               </div>
             )}
+
+            {/* Ethereum Sepolia Public Blockchain Notarization */}
+            <div className="pt-3 border-t border-primary/30 space-y-2 rounded-sm bg-primary/5 p-3">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-1.5 text-primary font-bold">
+                  <Globe className="size-3.5" />
+                  Ethereum Sepolia Blockchain Notary
+                </Label>
+                <span className="font-mono text-[10px] text-muted-foreground uppercase">
+                  Contract: DocumentNotary.sol
+                </span>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Anchor this document's SHA-256 fingerprint on Ethereum Sepolia. Once notarized, it can be independently verified on Sepolia Etherscan.
+              </p>
+              <div className="pt-1">
+                <NotarizeButton
+                  sha256Hash={current?.hash || ""}
+                  documentId={doc.id}
+                  documentName={doc.name}
+                />
+              </div>
+            </div>
           </div>
 
           {/* RSA-SHA256 Digital Signature Details Panel */}

@@ -14,7 +14,8 @@
     "test:ocr": "tsx --test tests/ocr.test.ts",
     "contract:compile": "hardhat compile --config hardhat.config.cjs",
     "contract:deploy:sepolia": "hardhat run scripts/deploy.cjs --network sepolia --config hardhat.config.cjs",
-    "contract:deploy:local": "hardhat run scripts/deploy.cjs --network hardhat --config hardhat.config.cjs"
+    "contract:deploy:local": "hardhat run scripts/deploy.cjs --network hardhat --config hardhat.config.cjs",
+    "test:blockchain": "hardhat run scripts/test-blockchain.cjs --network sepolia --config hardhat.config.cjs"
   },
   "overrides": {
     "rolldown": "1.2.1"

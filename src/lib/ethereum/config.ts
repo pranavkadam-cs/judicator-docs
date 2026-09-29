@@ -64,8 +64,8 @@ const chainTransports = ETH_NETWORK === "mainnet"
 export const wagmiConfig = createConfig({
   chains: [activeChain],
   connectors: [
-    metaMask(),
     injected(),
+    metaMask(),
   ],
   transports: chainTransports,
 });

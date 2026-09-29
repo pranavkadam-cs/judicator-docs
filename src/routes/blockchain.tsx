@@ -24,13 +24,16 @@ import {
   X,
   Key,
   BadgeCheck,
+  Globe,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WalletButton } from "@/lib/ethereum/WalletButton";
+import { NotarizeButton } from "@/lib/ethereum/NotarizeButton";
 import { DeployContractButton } from "@/lib/ethereum/DeployContractModal";
-import { useTotalNotarized } from "@/lib/ethereum/useVerifyOnChain";
+import { useTotalNotarized, useVerifyOnChain } from "@/lib/ethereum/useVerifyOnChain";
 import { useAccount } from "wagmi";
 import { isConfigured, ETH_NETWORK, CONTRACT_ADDRESS, etherscanAddress } from "@/lib/ethereum/config";
+
 
 export const Route = createFileRoute("/blockchain")({
   component: BlockchainPage,
@@ -107,6 +110,55 @@ function EnvRow({ label, value, ok }: { label: string; value: string; ok: boolea
       <span className="text-muted-foreground">{label}</span>
       <span className={cn("font-bold", ok ? "text-green-400" : "text-caution")}>{value}</span>
     </div>
+  );
+}
+
+/** Shows live Ethereum notarization status for a given SHA-256 hash */
+function EthereumStatusCell({ sha256Hash, showFull = false }: { sha256Hash: string; showFull?: boolean }) {
+  const { isNotarized, result, isPending } = useVerifyOnChain(sha256Hash);
+
+  if (!isConfigured) {
+    return <span className="font-mono text-[9px] text-muted-foreground">—</span>;
+  }
+
+  if (isPending) {
+    return <span className="font-mono text-[9px] text-muted-foreground animate-pulse">Checking…</span>;
+  }
+
+  if (isNotarized && result) {
+    const ts = new Date(result.timestamp * 1000).toLocaleString();
+    if (showFull) {
+      return (
+        <div className="space-y-1.5 text-xs font-mono">
+          <div className="flex items-center gap-1 text-green-400 font-bold text-[10px]">
+            <CheckCircle2 className="size-3" /> On-Chain — Ethereum Verified
+          </div>
+          <div className="text-muted-foreground text-[10px]">
+            <div>Notarized By: <span className="text-foreground">{result.notarizedBy.slice(0, 10)}…{result.notarizedBy.slice(-6)}</span></div>
+            <div>Timestamp: <span className="text-foreground">{ts}</span></div>
+          </div>
+          <a
+            href={etherscanAddress(CONTRACT_ADDRESS)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-[10px] text-primary hover:underline"
+          >
+            View Contract on Etherscan <ExternalLink className="size-2.5" />
+          </a>
+        </div>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 text-green-400 font-mono text-[9px] font-bold" title={`Notarized by ${result.notarizedBy} at ${ts}`}>
+        <CheckCircle2 className="size-3" /> On-Chain
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1 text-muted-foreground font-mono text-[9px]" title="This document has not been notarized on Ethereum. Click 'Notarize on Ethereum' on the document page.">
+      <Globe className="size-2.5 opacity-50" /> Not on Ethereum
+    </span>
   );
 }
 
@@ -541,7 +593,8 @@ function BlockchainPage() {
                     <th className="px-4 py-2.5 text-left font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Event</th>
                     <th className="px-4 py-2.5 text-left font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Document</th>
                     <th className="px-4 py-2.5 text-left font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground">SHA-256 Digest</th>
-                    <th className="px-4 py-2.5 text-left font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Tx Hash</th>
+                    <th className="px-4 py-2.5 text-left font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground" title="Local chained ledger hash — NOT an Ethereum transaction hash">Block Hash (Local)</th>
+                    <th className="px-4 py-2.5 text-left font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Ethereum</th>
                     <th className="px-4 py-2.5 text-left font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Actor</th>
                     <th className="px-4 py-2.5 text-left font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Timestamp</th>
                     <th className="px-4 py-2.5 text-left font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Chain Seal</th>
@@ -586,15 +639,18 @@ function BlockchainPage() {
                         <td className="px-4 py-3">
                           <span
                             className="font-mono text-[9px] text-muted-foreground cursor-pointer hover:text-foreground inline-flex items-center gap-1"
-                            title="Click to copy Tx ID"
+                            title="Local chain block hash — NOT an Ethereum tx hash. This is computed as sha256(prevTxId:metadataHash:timestamp)"
                             onClick={() => {
                               void navigator.clipboard.writeText(tx.txId);
-                              toast.success("Transaction ID copied to clipboard");
+                              toast.success("Local block hash copied (not Ethereum tx)");
                             }}
                           >
                             {tx.txId.slice(0, 10)}…
                             <Copy className="size-2.5 opacity-60" />
                           </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <EthereumStatusCell sha256Hash={tx.sha256Hash} />
                         </td>
                         <td className="px-4 py-3">
                           <div className="text-xs text-foreground">{tx.actorName}</div>
@@ -736,16 +792,32 @@ function BlockchainPage() {
 
                   <div className="rounded-sm border border-border bg-background p-2.5">
                     <div className="flex items-center justify-between text-[10px] uppercase font-bold text-foreground mb-1">
-                      <span>Block Tx Hash (sha256(prevTxId:metadataHash:timestamp))</span>
+                      <span>Local Block Hash (sha256(prevTxId:metadataHash:timestamp))</span>
                       <Copy
                         className="size-3 cursor-pointer hover:text-primary"
                         onClick={() => {
                           void navigator.clipboard.writeText(selectedTx.txId);
-                          toast.success("Tx Hash copied");
+                          toast.success("Local block hash copied");
                         }}
                       />
                     </div>
                     <div className="break-all font-bold text-foreground">{selectedTx.txId}</div>
+                    <div className="mt-1 text-[9px] text-amber-400">
+                      ⚠ This is the local chained ledger hash, NOT an Ethereum transaction hash. Do not look this up on Etherscan.
+                    </div>
+                  </div>
+                  <div className="rounded-sm border border-primary/30 bg-primary/5 p-2.5">
+                    <div className="text-[10px] uppercase font-bold text-primary mb-1 flex items-center gap-1">
+                      <Globe className="size-3" /> Ethereum Notarization Status
+                    </div>
+                    <EthereumStatusCell sha256Hash={selectedTx.sha256Hash} showFull />
+                    <div className="mt-2.5 pt-2.5 border-t border-primary/20">
+                      <NotarizeButton
+                        sha256Hash={selectedTx.sha256Hash}
+                        documentId={selectedTx.documentId}
+                        documentName={selectedTx.documentName}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>

@@ -1,4 +1,4 @@
-import { createFileRoute, Link, Outlet, useMatch } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useMatch, useLocation, useChildMatches } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { AppShell } from "@/components/dms/shell";
 import {
@@ -16,6 +16,7 @@ import { SearchFilters, type FilterState } from "@/components/dms/search-filters
 import { useActor } from "@/components/dms/actor";
 import { canRead, shortHash } from "@/lib/dms-types";
 import { FileText, Eye } from "lucide-react";
+import { WalletButton } from "@/lib/ethereum/WalletButton";
 
 export const Route = createFileRoute("/documents")({
   component: DocumentsPage,
@@ -25,8 +26,10 @@ function DocumentsPage() {
   const { actor } = useActor();
   const { data, isPending } = useSnapshot();
 
-  // Check if a child route (document detail) is active
+  const location = useLocation();
+  const childMatches = useChildMatches();
   const childMatch = useMatch({ from: "/documents/$docId", shouldThrow: false });
+  const isChildRoute = Boolean(childMatch) || childMatches.length > 0 || (location.pathname !== "/documents" && location.pathname !== "/documents/");
 
   const [filters, setFilters] = useState<FilterState>({
     query: "",
@@ -101,12 +104,20 @@ function DocumentsPage() {
   }, [data, actor, filters]);
 
   // If a child route is active, render the Outlet (document detail view)
-  if (childMatch) {
+  if (isChildRoute) {
     return <Outlet />;
   }
 
   return (
-    <AppShell title="Sealed Document Registry" subtitle="Secure Archiving division">
+    <AppShell
+      title="Sealed Document Registry"
+      subtitle="Secure Archiving division"
+      actions={
+        <div className="flex items-center gap-2">
+          <WalletButton />
+        </div>
+      }
+    >
       <div className="space-y-6">
         <SearchFilters
           filters={filters}

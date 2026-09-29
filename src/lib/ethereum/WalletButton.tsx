@@ -4,9 +4,10 @@
  * Uses wagmi hooks — must be inside <WagmiProvider>.
  */
 
+import { useState, useEffect } from "react";
 import { useAccount, useConnect, useDisconnect, useBalance } from "wagmi";
-import { metaMask } from "wagmi/connectors";
-import { Wallet, LogOut, ExternalLink, Loader2, AlertCircle } from "lucide-react";
+import { Wallet, LogOut, ExternalLink, Loader2, AlertCircle, Download } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { etherscanAddress, activeChain } from "./config";
 
@@ -22,10 +23,28 @@ function formatEth(value: bigint, decimals: number = 18): string {
   return `${whole}.${fractionStr}`;
 }
 
+function getEthereumProvider() {
+  if (typeof window === "undefined") return null;
+  const anyWindow = window as any;
+  if (!anyWindow.ethereum) return null;
+  // If multiple injected providers exist (e.g. MetaMask + Coinbase or Phantom)
+  if (Array.isArray(anyWindow.ethereum.providers)) {
+    const mm = anyWindow.ethereum.providers.find((p: any) => p.isMetaMask);
+    if (mm) return mm;
+  }
+  return anyWindow.ethereum;
+}
+
 export function WalletButton({ className }: { className?: string }) {
   const { address, isConnected, isConnecting } = useAccount();
   const { connect, connectors, error: connectError } = useConnect();
   const { disconnect } = useDisconnect();
+
+  const [hasProvider, setHasProvider] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    setHasProvider(Boolean(getEthereumProvider()));
+  }, []);
 
   const { data: balance } = useBalance({
     address,
@@ -33,30 +52,48 @@ export function WalletButton({ className }: { className?: string }) {
   });
 
   async function handleConnect() {
-    const mmConnector =
-      connectors.find((c) => c.id === "metaMask") ||
-      connectors.find((c) => c.id === "injected") ||
-      connectors[0];
+    const provider = getEthereumProvider();
 
-    if (mmConnector) {
-      try {
-        connect({ connector: mmConnector });
-        return;
-      } catch (err) {
-        console.warn("Wagmi connect failed, attempting direct window.ethereum request", err);
-      }
+    if (!provider) {
+      toast.error("MetaMask Extension Not Found", {
+        description: "Please install the MetaMask browser extension from metamask.io and refresh this page.",
+        action: {
+          label: "Get MetaMask",
+          onClick: () => window.open("https://metamask.io/download/", "_blank"),
+        },
+        duration: 8000,
+      });
+      window.open("https://metamask.io/download/", "_blank");
+      return;
     }
 
-    const eth = typeof window !== "undefined" ? (window as any).ethereum : undefined;
-    if (eth) {
-      try {
-        await eth.request({ method: "eth_requestAccounts" });
-        if (mmConnector) connect({ connector: mmConnector });
-      } catch (err: any) {
-        console.error("Direct ethereum account request failed:", err);
+    try {
+      // 1. First request accounts directly from provider to trigger popup
+      await provider.request({ method: "eth_requestAccounts" });
+
+      // 2. Connect via wagmi connector
+      const targetConnector =
+        connectors.find((c) => c.id === "injected") ||
+        connectors.find((c) => c.id === "metaMask") ||
+        connectors[0];
+
+      if (targetConnector) {
+        connect({ connector: targetConnector });
       }
-    } else {
-      window.open("https://metamask.io/download/", "_blank");
+    } catch (err: any) {
+      if (err?.code === 4001) {
+        toast.warning("Connection cancelled in MetaMask.");
+      } else {
+        console.warn("Wallet connect error:", err);
+        // Fallback to wagmi connect
+        const targetConnector =
+          connectors.find((c) => c.id === "injected") ||
+          connectors.find((c) => c.id === "metaMask") ||
+          connectors[0];
+        if (targetConnector) {
+          connect({ connector: targetConnector });
+        }
+      }
     }
   }
 
@@ -70,24 +107,43 @@ export function WalletButton({ className }: { className?: string }) {
   }
 
   if (!isConnected || !address) {
+    const isProviderMissing = hasProvider === false || connectError?.message?.toLowerCase().includes("provider not found");
+
     return (
       <div className={cn("flex flex-col gap-1.5", className)}>
-        <button
-          id="metamask-connect-btn"
-          onClick={() => void handleConnect()}
-          className="flex items-center gap-2 rounded-sm border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-400 hover:bg-amber-500/20 transition-colors cursor-pointer"
-        >
-          <Wallet className="size-3.5" />
-          Connect MetaMask
-        </button>
-        {connectError && (
+        {isProviderMissing ? (
+          <button
+            id="metamask-install-btn"
+            onClick={() => window.open("https://metamask.io/download/", "_blank")}
+            className="flex items-center gap-2 rounded-sm border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-400 hover:bg-amber-500/20 transition-colors cursor-pointer"
+            title="MetaMask is not detected in this browser. Click to install from metamask.io"
+          >
+            <Download className="size-3.5" />
+            Install MetaMask Extension
+          </button>
+        ) : (
+          <button
+            id="metamask-connect-btn"
+            onClick={() => void handleConnect()}
+            className="flex items-center gap-2 rounded-sm border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-400 hover:bg-amber-500/20 transition-colors cursor-pointer"
+          >
+            <Wallet className="size-3.5" />
+            Connect MetaMask
+          </button>
+        )}
+
+        {isProviderMissing ? (
+          <div className="text-[10px] text-amber-400/90 leading-tight">
+            ⚠ MetaMask extension not detected. Install it in Chrome/Brave/Edge & reload.
+          </div>
+        ) : connectError ? (
           <div className="flex items-center gap-1.5 text-[10px] text-destructive">
             <AlertCircle className="size-3" />
             {connectError.message.includes("rejected")
-              ? "Connection rejected"
-              : connectError.message.slice(0, 60)}
+              ? "Connection rejected in wallet"
+              : connectError.message.slice(0, 70)}
           </div>
-        )}
+        ) : null}
       </div>
     );
   }
