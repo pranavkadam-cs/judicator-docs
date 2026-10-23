@@ -476,3 +476,39 @@ export const searchDocumentsFn = createServerFn({ method: "POST" })
     const { actor, query, limit } = data;
     return searchDocuments({ actor, query, ...(limit !== undefined ? { limit } : {}) });
   });
+
+// ── Live Ethereum Sepolia Blockchain Verification & Notarization ────
+
+export const verifyOnSepoliaFn = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        sha256Hash: z.string().min(10),
+      })
+      .parse(input)
+  )
+  .handler(async ({ data }) => {
+    const { verifyDocumentOnChainServer } = await import("./ethereum/ethereum.server");
+    return verifyDocumentOnChainServer(data.sha256Hash);
+  });
+
+export const notarizeOnSepoliaFn = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        sha256Hash: z.string().min(10),
+        documentId: z.string().min(1),
+        documentName: z.string().min(1),
+      })
+      .parse(input)
+  )
+  .handler(async ({ data }) => {
+    const { notarizeDocumentOnChainServer } = await import("./ethereum/ethereum.server");
+    return notarizeDocumentOnChainServer(data);
+  });
+
+export const getSepoliaStatusFn = createServerFn({ method: "GET" })
+  .handler(async () => {
+    const { getSepoliaChainStatusServer } = await import("./ethereum/ethereum.server");
+    return getSepoliaChainStatusServer();
+  });

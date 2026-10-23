@@ -32,6 +32,8 @@ import { SUPPORTED_OCR_LANGUAGES } from "@/lib/ocr/ocr-types";
 import { WorkflowActions } from "@/components/dms/workflow-actions";
 import { SharePanel } from "@/components/dms/share-panel";
 import { IntegrityCertificate } from "@/components/dms/integrity-certificate";
+import { NotarizeButton } from "@/lib/ethereum/NotarizeButton";
+import { etherscanAddress, CONTRACT_ADDRESS, isConfigured as isEthConfigured } from "@/lib/ethereum/config";
 import {
   ShieldCheck,
   ShieldAlert,
@@ -54,7 +56,6 @@ import {
   XCircle,
   Globe,
 } from "lucide-react";
-import { NotarizeButton } from "@/lib/ethereum/NotarizeButton";
 import { WalletButton } from "@/lib/ethereum/WalletButton";
 import { cn } from "@/lib/utils";
 
@@ -98,7 +99,7 @@ function DocumentDetailsPage() {
   const [copied, setCopied] = useState(false);
   const [copiedSig, setCopiedSig] = useState(false);
   const [copiedText, setCopiedText] = useState(false);
-  const [activeTab, setActiveTab] = useState<"ocr" | "history" | "timeline" | "sharing">("ocr");
+  const [activeTab, setActiveTab] = useState<"ocr" | "history" | "timeline" | "sharing" | "blockchain">("ocr");
   const [ocrSearch, setOcrSearch] = useState("");
   const [ocrLangSelection, setOcrLangSelection] = useState("eng");
   const [showCertificate, setShowCertificate] = useState(false);
@@ -770,6 +771,20 @@ function DocumentDetailsPage() {
             >
               Access Sharing
             </button>
+            <button
+              onClick={() => setActiveTab("blockchain")}
+              className={`px-4 py-2 font-mono text-xs font-bold uppercase tracking-wider border-b-2 cursor-pointer flex items-center gap-1.5 ${
+                activeTab === "blockchain"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Cpu className="size-3.5" />
+              <span>Ethereum Notary</span>
+              {isEthConfigured && (
+                <span className="size-1.5 rounded-full bg-green-400 animate-pulse" />
+              )}
+            </button>
           </div>
 
           {activeTab === "ocr" ? (
@@ -1098,6 +1113,79 @@ function DocumentDetailsPage() {
                     })}
                 </ol>
               )}
+            </Panel>
+          ) : activeTab === "blockchain" ? (
+            <Panel className="p-5 space-y-5">
+              <div className="flex items-center justify-between border-b border-border pb-3">
+                <div className="flex items-center gap-2">
+                  <Cpu className="size-4 text-primary" />
+                  <Label>Live Ethereum Sepolia Blockchain Notarization</Label>
+                  {isEthConfigured ? (
+                    <span className="inline-flex items-center gap-1 font-mono text-[9px] bg-green-500/15 text-green-400 border border-green-500/30 rounded-sm px-1.5 py-0.5 font-bold uppercase">
+                      <span className="size-1.5 rounded-full bg-green-400 animate-pulse" />
+                      Sepolia Live
+                    </span>
+                  ) : (
+                    <span className="font-mono text-[9px] bg-amber-500/15 text-amber-400 border border-amber-500/30 rounded-sm px-1.5 py-0.5 font-bold uppercase">
+                      Contract Not Configured
+                    </span>
+                  )}
+                </div>
+                {isEthConfigured && CONTRACT_ADDRESS && (
+                  <a
+                    href={etherscanAddress(CONTRACT_ADDRESS)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 font-mono text-[10px] text-primary hover:underline"
+                  >
+                    View Contract on Etherscan <ExternalLink className="size-2.5" />
+                  </a>
+                )}
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <div className="font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Document to Anchor</div>
+                  <div className="rounded-sm border border-border bg-muted/20 p-3 space-y-1.5 font-mono text-xs">
+                    <div className="flex justify-between gap-2">
+                      <span className="text-muted-foreground">Name:</span>
+                      <span className="text-foreground font-bold truncate">{doc.name}</span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-muted-foreground">Doc ID:</span>
+                      <span className="text-primary">{doc.id}</span>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-muted-foreground">SHA-256 Hash:</span>
+                      <span className="text-primary break-all text-[10px]">{current?.hash || "No hash available"}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Notarize on Ethereum</div>
+                  {current?.hash ? (
+                    <NotarizeButton
+                      sha256Hash={current.hash}
+                      documentId={doc.id}
+                      documentName={doc.name}
+                      onNotarized={() => toast.success("Document anchored on Sepolia!", { description: "SHA-256 hash is now permanently on Ethereum." })}
+                    />
+                  ) : (
+                    <div className="rounded-sm border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
+                      No SHA-256 hash available for this document version.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-sm border border-border bg-muted/20 p-3 text-[11px] text-muted-foreground font-mono space-y-1">
+                <div className="font-bold text-foreground text-xs mb-2">How Ethereum Notarization Works</div>
+                <div>① The SHA-256 hash of this document is computed on-server and submitted to the <span className="text-primary">DocumentNotary.sol</span> smart contract.</div>
+                <div>② The transaction is mined on Sepolia Testnet (Chain ID 11155111) and becomes <span className="text-foreground font-bold">permanently immutable</span>.</div>
+                <div>③ Anyone can independently verify the hash on <a href="https://sepolia.etherscan.io" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">sepolia.etherscan.io</a> without trusting this application.</div>
+                <div>④ <span className="font-bold text-foreground">1-Click Notarize</span> uses your pre-funded relay wallet. <span className="font-bold text-foreground">MetaMask</span> option uses your own wallet and private key.</div>
+              </div>
             </Panel>
           ) : (
             <SharePanel documentId={doc.id} />
