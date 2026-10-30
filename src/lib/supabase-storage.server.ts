@@ -45,10 +45,11 @@ async function ensureBucketExists(): Promise<boolean> {
     if (buckets && buckets.some((b) => b.name === config.bucket || b.id === config.bucket)) {
       return true;
     }
-    // Attempt to create bucket
+    // Attempt to create bucket (allowedMimeTypes: null = accept any format)
     const { error } = await client.storage.createBucket(config.bucket, {
       public: true,
       fileSizeLimit: 52428800, // 50MB
+      allowedMimeTypes: null,
     });
     return !error;
   } catch {

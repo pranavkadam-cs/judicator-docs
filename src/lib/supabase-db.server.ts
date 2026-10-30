@@ -56,6 +56,26 @@ export async function loadRegistryFromSupabase(): Promise<Registry | null> {
  */
 async function syncRelationalTables(client: any, reg: Registry): Promise<void> {
   try {
+    // 0. Sync Users
+    if (reg.users && reg.users.length > 0) {
+      const userRows = reg.users.map((u) => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        badge: u.badge,
+        role: u.role,
+        password_hash: u.passwordHash,
+        is_active: u.isActive,
+        created_at: u.createdAt,
+        last_login_at: u.lastLoginAt || null,
+      }));
+      try {
+        await client.from("vigil_users").upsert(userRows, { onConflict: "id" });
+      } catch {
+        // Continue
+      }
+    }
+
     // 1. Sync Cases
     if (reg.cases && reg.cases.length > 0) {
       const caseRows = reg.cases.map((c) => ({
@@ -120,6 +140,7 @@ async function syncRelationalTables(client: any, reg: Registry): Promise<void> {
         action: a.action,
         actor_id: a.actorId,
         actor_name: a.actor,
+        actor_badge: (reg.users.find((u) => u.id === a.actorId)?.badge) || "",
         actor_role: a.role,
         target_name: a.target,
         details: a.detail,

@@ -209,16 +209,7 @@ values (
     'evidence-vault',
     true,
     52428800, -- 50 MB
-    array[
-        'application/pdf',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'text/plain',
-        'image/png',
-        'image/jpeg',
-        'image/jpg',
-        'image/tiff'
-    ]
+    null       -- null = allow all MIME types
 )
 on conflict (id) do update set
     public = true,

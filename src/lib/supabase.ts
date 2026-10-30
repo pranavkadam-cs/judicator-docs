@@ -44,8 +44,14 @@ export interface SupabaseConfig {
 export function getSupabaseConfig(): SupabaseConfig | null {
   loadEnv();
   const url = process.env["SUPABASE_URL"] || "";
-  const anonKey = process.env["SUPABASE_ANON_KEY"] || "";
-  const serviceRoleKey = process.env["SUPABASE_SERVICE_ROLE_KEY"];
+  // Support both canonical key names and Supabase CLI generated names
+  const anonKey =
+    process.env["SUPABASE_ANON_KEY"] ||
+    process.env["SUPABASE_PUBLISHABLE_KEY"] ||
+    "";
+  const serviceRoleKey =
+    process.env["SUPABASE_SERVICE_ROLE_KEY"] ||
+    process.env["SUPABASE_SECRET_KEY"];
   const bucket = process.env["SUPABASE_STORAGE_BUCKET"] || "evidence-vault";
 
   if (!url || !anonKey || url.includes("your-project") || anonKey.includes("your-supabase")) {
